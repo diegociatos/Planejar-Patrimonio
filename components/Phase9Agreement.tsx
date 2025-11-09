@@ -61,7 +61,6 @@ const Phase9Agreement: React.FC<Phase9AgreementProps> = ({ phase, project, curre
     const [message, setMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // FIX: Define the missing `isConsultant` variable to determine which view to render.
     const isConsultant = currentUser.role === UserRole.CONSULTANT || currentUser.role === UserRole.ADMINISTRATOR;
 
     const allPartners = project.clientIds

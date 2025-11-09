@@ -215,7 +215,6 @@ const Phase8Quotas: React.FC<Phase8QuotasProps> = ({ phase, project, currentUser
                             ))}
                         </div>
                          {currentUser.clientType === 'partner' && !process.approvals?.[currentUser.id] && (process.drafts || []).length > 0 && !isReadOnly && (
-                            // FIX: The function call was passing an argument to a function that expects none.
                             <button onClick={handleClientApproval} className="w-full mt-4 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 text-sm">
                                 Aprovar Minuta
                             </button>

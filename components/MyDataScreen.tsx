@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// FIX: Import the 'Project' type to be used in the props interface.
 import { User, Project, PartnerQualificationData, UserDocumentCategory, UserDocument } from '../types';
 import Icon from './Icon';
 
@@ -95,7 +94,6 @@ const DataCompletionProgress: React.FC<{ user: User }> = ({ user }) => {
     );
 };
 
-// FIX: Add missing properties 'projects', 'onChangePassword', and 'onNavigateToTask' passed from App.tsx.
 interface MyDataScreenProps {
   currentUser: User;
   projects: Project[];

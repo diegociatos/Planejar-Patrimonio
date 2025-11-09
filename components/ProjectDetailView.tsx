@@ -4,7 +4,6 @@ import Icon from './Icon';
 
 // Import all phase components
 import Phase1Diagnostic from './Phase1Diagnostic';
-// FIX: Changed to a named import as the module does not have a default export.
 import { Phase2Constitution } from './Phase2Constitution';
 import Phase3Integralization from './Phase3Integralization';
 import Phase4Minuta from './Phase4Minuta';
@@ -207,8 +206,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
             case 9:
                  return <Phase9Agreement phase={selectedPhase} project={project} currentUser={currentUser} users={users} canEdit={canEdit} onUpdateData={(data) => handlePhaseDataUpdate('phase9Data', data)} isReadOnly={isReadOnly} />;
             case 10:
-                // FIX: The call to handlePhaseDataUpdate was missing the second argument 'data'.
-                return <Phase10Support phase={selectedPhase} currentUser={currentUser} onUpdateData={(data) => handlePhaseDataUpdate('phase10Data' as any, data)} project={project} />;
+                return <Phase10Support phase={selectedPhase} currentUser={currentUser} onUpdateData={(data) => handlePhaseDataUpdate('phase10Data', data)} project={project} />;
             default:
                 return <div>Componente para a fase {selectedPhase.id} não implementado.</div>;
         }

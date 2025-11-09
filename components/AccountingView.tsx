@@ -3,23 +3,12 @@ import React, { useState } from 'react';
 import { Phase, User, UserRole, SupportRequest, Document, ChatMessage, Project } from '../types';
 import Icon from './Icon';
 
-interface Phase10SupportProps {
-  phase: Phase;
-  currentUser: User;
-  onUpdateData: (data: Partial<{ requests: SupportRequest[] }>) => void;
-  project?: Project;
-}
-
-// FIX: Extracted the NewRequestModal component outside of the Phase10Support component.
-// This prevents the modal from being re-created on every state change of the parent,
-// which was causing the input fields to lose focus after every character typed.
 interface NewRequestModalProps {
   onClose: () => void;
   onCreateRequest: (title: string, description: string) => void;
 }
 
 const NewRequestModal: React.FC<NewRequestModalProps> = ({ onClose, onCreateRequest }) => {
-  // State for the form is now managed locally within the modal.
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
 
@@ -50,6 +39,13 @@ const NewRequestModal: React.FC<NewRequestModalProps> = ({ onClose, onCreateRequ
     </div>
   );
 };
+
+interface Phase10SupportProps {
+  phase: Phase;
+  currentUser: User;
+  onUpdateData: (data: Partial<{ requests: SupportRequest[] }>) => void;
+  project?: Project;
+}
 
 const Phase10Support: React.FC<Phase10SupportProps> = ({ phase, currentUser, onUpdateData, project }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);

@@ -328,7 +328,7 @@ const useStore = () => {
             }));
         },
         handleAiSendMessage: async (content: string) => {
-            if (!currentUser) return;
+            if (!currentUser || !aiChatSession) return;
             
             const userMessage: ChatMessage = {
                 id: `msg-ai-${Date.now()}`,
@@ -343,7 +343,7 @@ const useStore = () => {
             setIsAiLoading(true);
 
             try {
-                const responseText = await aiChatSession!.sendMessage(content);
+                const responseText = await aiChatSession.sendMessage(content);
                 const aiResponse: ChatMessage = {
                     id: `msg-ai-${Date.now() + 1}`,
                     authorId: 'ai',
@@ -373,7 +373,6 @@ const useStore = () => {
         allUsers, projects, currentUser, isLoading, userForPasswordChange,
         currentView, selectedProject, notifications, activeChat, targetPhaseId, isAiChatOpen,
         aiChatMessages, isAiLoading, availableClients, isSidebarOpen,
-        // FIX: The aiChatSession state variable was not being returned.
         aiChatSession,
         actions, setCurrentUser, setUserForPasswordChange, setCurrentView,
         setSelectedProjectId, setNotifications, setActiveChat, setTargetPhaseId,
@@ -552,7 +551,7 @@ const App = () => {
           />
         )}
 
-      {store.isAiChatOpen && (
+      {store.isAiChatOpen && store.aiChatSession && (
         <AIChat
           currentUser={store.currentUser}
           messages={store.aiChatMessages}

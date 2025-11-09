@@ -15,7 +15,6 @@ const ManageClientsModal: React.FC<ManageClientsModalProps> = ({ isOpen, onClose
   const [newClient, setNewClient] = useState({ name: '', email: '', password: '', clientType: 'partner' as 'partner' | 'interested' });
   const [error, setError] = useState('');
 
-  // FIX: Derive client user objects from clientIds to use for rendering.
   const projectClients = useMemo(() => {
     return project.clientIds.map(id => allUsers.find(u => u.id === id)).filter((u): u is User => !!u);
   }, [project.clientIds, allUsers]);
@@ -39,26 +38,21 @@ const ManageClientsModal: React.FC<ManageClientsModalProps> = ({ isOpen, onClose
         password: newClient.password,
         clientType: newClient.clientType,
         role: UserRole.CLIENT,
-        avatarUrl: `https://i.pravatar.cc/150?u=${Date.now()}`,
         requiresPasswordChange: true,
     };
     
     onAddUser(newUser);
-    // FIX: The 'Project' type has 'clientIds' (string array), not 'clients' (User array). Update clientIds with the new user's ID.
     onUpdateProject(project.id, { clientIds: [...project.clientIds, newUser.id] });
     setNewClient({ name: '', email: '', password: '', clientType: 'partner' });
   };
 
   const handleRemoveClient = (clientId: string) => {
-    // FIX: The 'Project' type has 'clientIds', not 'clients'. Check length against clientIds.
     if (project.clientIds.length <= 1) {
         alert("O projeto deve ter pelo menos um cliente.");
         return;
     }
     if (window.confirm("Tem certeza que deseja remover este cliente do projeto? O usuário não será deletado do sistema.")) {
-      // FIX: Filter the clientIds array (string[]) instead of an array of objects.
       const updatedClientIds = project.clientIds.filter(id => id !== clientId);
-      // FIX: Update the project with the new clientIds array.
       onUpdateProject(project.id, { clientIds: updatedClientIds });
     }
   };
@@ -81,11 +75,14 @@ const ManageClientsModal: React.FC<ManageClientsModalProps> = ({ isOpen, onClose
             <div>
               <h3 className="font-semibold text-gray-800 mb-2">Clientes Atuais</h3>
               <ul className="space-y-2">
-                {/* FIX: Map over the derived projectClients array of User objects instead of the non-existent 'project.clients'. */}
                 {projectClients.map(client => (
                   <li key={client.id} className="flex items-center justify-between p-2 bg-gray-100 rounded-md">
                     <div className="flex items-center">
-                        <img src={client.avatarUrl} alt={client.name} className="w-8 h-8 rounded-full mr-3"/>
+                        {client.avatarUrl ? (
+                           <img src={client.avatarUrl} alt={client.name} className="w-8 h-8 rounded-full mr-3"/>
+                        ) : (
+                           <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold">{client.name.charAt(0)}</div>
+                        )}
                         <div>
                             <p className="text-sm font-medium">{client.name}</p>
                             <p className="text-xs text-gray-500">{client.email}</p>
