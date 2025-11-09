@@ -1,13 +1,18 @@
-
-
-
 import { GoogleGenAI, Chat, Type } from "@google/genai";
 import { ChatMessage, UserRole, AIAnalysisResult } from '../types';
 import { fileToBase64 } from "../utils/fileUtils";
 
-// According to the guidelines, the API key must be sourced from process.env.API_KEY,
-// which is assumed to be configured in the execution environment.
-const ai: GoogleGenAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization for the GoogleGenAI instance to prevent crashes on startup
+// in environments where the API key is not immediately available.
+let ai: GoogleGenAI | null = null;
+const getAi = (): GoogleGenAI => {
+  if (!ai) {
+    // The API key must be obtained from the environment variable process.env.API_KEY.
+    // The polyfill in index.html ensures this object path exists, even if the key is empty initially.
+    ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  }
+  return ai;
+};
 
 
 const AI_PERSONA = `Persona: Você é um assistente de IA para uma plataforma de gestão de holdings familiares. Seu nome é Plano. Sua personalidade é paciente, didática e você deve explicar conceitos complexos de forma simples, como se estivesse falando com alguém mais velho e sem conhecimento técnico. Use exemplos práticos, analogias e formate suas respostas com markdown para melhor legibilidade (listas, negrito). Nunca recuse uma pergunta, mas se o assunto for muito fora do escopo de holdings, finanças ou direito de família, gentilmente redirecione a conversa para o tema principal.`;
@@ -16,7 +21,7 @@ class AIChatSession {
     private chat: Chat;
 
     constructor() {
-        this.chat = ai.chats.create({
+        this.chat = getAi().chats.create({
             model: 'gemini-2.5-flash',
             config: {
                 systemInstruction: AI_PERSONA,
@@ -42,7 +47,7 @@ export const createAIChatSession = () => {
 
 export const getAIHelp = async (question: string): Promise<ChatMessage> => {
   try {
-    const response = await ai.models.generateContent({
+    const response = await getAi().models.generateContent({
       model: "gemini-2.5-flash",
       contents: question,
       config: {
@@ -78,7 +83,7 @@ export const getAIHelp = async (question: string): Promise<ChatMessage> => {
 
 export const generateAIDraft = async (prompt: string): Promise<string> => {
     try {
-        const response = await ai.models.generateContent({
+        const response = await getAi().models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
@@ -115,7 +120,7 @@ export const analyzeDocumentWithAI = async (file: File): Promise<AIAnalysisResul
     };
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await getAi().models.generateContent({
             model: 'gemini-2.5-flash',
             contents: { parts: [filePart, textPart] },
             config: {

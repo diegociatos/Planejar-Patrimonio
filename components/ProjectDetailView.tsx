@@ -12,7 +12,7 @@ import Phase6Registration from './Phase6Registration';
 import Phase7Conclusion from './Phase7Conclusion';
 import Phase8Quotas from './Phase8Quotas';
 import Phase9Agreement from './Phase9Agreement';
-import Phase10Support from './AccountingView';
+import Phase10Support from './Phase10Support';
 import ActivityLogModal from './ActivityLogModal';
 
 // NEW: Hub component defined within ProjectDetailView
