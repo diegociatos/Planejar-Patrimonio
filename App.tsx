@@ -386,6 +386,7 @@ const App = () => {
 
   useEffect(() => {
     if (store.currentUser && !store.aiChatSession) {
+      try {
         store.setAiChatSession(createAIChatSession());
         store.setAiChatMessages([
             {
@@ -397,6 +398,19 @@ const App = () => {
                 authorRole: UserRole.CONSULTANT,
             }
         ]);
+      } catch (error) {
+          console.error("Failed to initialize AI Chat Session:", error);
+          store.setAiChatMessages([
+             {
+                  id: 'initial-ai-msg-error',
+                  authorId: 'ai',
+                  authorName: 'Assistente IA',
+                  content: 'Não foi possível iniciar o assistente de IA. A funcionalidade de chat com IA estará desativada.',
+                  timestamp: new Date().toISOString(),
+                  authorRole: UserRole.CONSULTANT,
+              }
+          ]);
+      }
     }
   }, [store.currentUser]);
 
