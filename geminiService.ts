@@ -1,0 +1,153 @@
+
+
+
+import { GoogleGenAI, Chat, Type } from "@google/genai";
+import { ChatMessage, UserRole, AIAnalysisResult } from '../types';
+import { fileToBase64 } from "../utils/fileUtils";
+
+// According to the guidelines, the API key must be sourced from process.env.API_KEY,
+// which is assumed to be configured in the execution environment.
+const ai: GoogleGenAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+
+const AI_PERSONA = `Persona: Você é um assistente de IA para uma plataforma de gestão de holdings familiares. Seu nome é Plano. Sua personalidade é paciente, didática e você deve explicar conceitos complexos de forma simples, como se estivesse falando com alguém mais velho e sem conhecimento técnico. Use exemplos práticos, analogias e formate suas respostas com markdown para melhor legibilidade (listas, negrito). Nunca recuse uma pergunta, mas se o assunto for muito fora do escopo de holdings, finanças ou direito de família, gentilmente redirecione a conversa para o tema principal.`;
+
+class AIChatSession {
+    private chat: Chat;
+
+    constructor() {
+        this.chat = ai.chats.create({
+            model: 'gemini-2.5-flash',
+            config: {
+                systemInstruction: AI_PERSONA,
+                temperature: 0.5,
+            }
+        });
+    }
+
+    async sendMessage(message: string): Promise<string> {
+        try {
+            const response = await this.chat.sendMessage({ message });
+            return response.text;
+        } catch (error) {
+            console.error("Error calling Gemini API:", error);
+            return "Ocorreu um erro ao processar sua pergunta. Tente novamente mais tarde.";
+        }
+    }
+}
+
+export const createAIChatSession = () => {
+    return new AIChatSession();
+};
+
+export const getAIHelp = async (question: string): Promise<ChatMessage> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: question,
+      config: {
+        systemInstruction: AI_PERSONA,
+        temperature: 0.5,
+      }
+    });
+
+    const text = response.text;
+    
+    return {
+      id: Date.now().toString(),
+      authorId: 'ai',
+      authorName: 'Assistente IA',
+      authorAvatarUrl: '',
+      authorRole: UserRole.CONSULTANT,
+      content: text,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error("Error calling Gemini API:", error);
+    return {
+      id: Date.now().toString(),
+      authorId: 'ai',
+      authorName: 'Assistente IA',
+      authorAvatarUrl: '',
+      authorRole: UserRole.CONSULTANT,
+      content: "Ocorreu um erro ao processar sua pergunta. Tente novamente mais tarde.",
+      timestamp: new Date().toISOString(),
+    };
+  }
+};
+
+export const generateAIDraft = async (prompt: string): Promise<string> => {
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                systemInstruction: `Você é um assistente especialista em direito societário e planejamento patrimonial no Brasil. Sua tarefa é gerar minutas de documentos jurídicos, como acordos de sócios para holdings familiares. O texto deve ser formal, claro e abranger os pontos solicitados. Não inclua opiniões ou saudações, apenas o texto do documento.`,
+                temperature: 0.3,
+            }
+        });
+
+        return response.text;
+    } catch (error) {
+        console.error("Error calling Gemini API for draft generation:", error);
+        return "Ocorreu um erro ao gerar o rascunho. Tente novamente.";
+    }
+};
+
+export const analyzeDocumentWithAI = async (file: File): Promise<AIAnalysisResult> => {
+    const base64Data = await fileToBase64(file);
+    const filePart = {
+        inlineData: {
+            mimeType: file.type,
+            data: base64Data,
+        },
+    };
+
+    const textPart = {
+        text: `
+          Analise este documento no contexto da criação de uma holding familiar no Brasil.
+          1.  Faça um resumo conciso do propósito principal do documento.
+          2.  Extraia informações chave, como nomes de pessoas, empresas, endereços de imóveis, valores monetários e cláusulas importantes.
+          3.  Sugira de 3 a 5 tarefas ou próximos passos acionáveis para um consultor com base no conteúdo. As tarefas devem ser curtas e diretas.
+          
+          Retorne a resposta EXCLUSIVAMENTE em formato JSON.
+        `,
+    };
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts: [filePart, textPart] },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        summary: { type: Type.STRING },
+                        keyInfo: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    label: { type: Type.STRING },
+                                    value: { type: Type.STRING },
+                                }
+                            }
+                        },
+                        suggestedTasks: {
+                            type: Type.ARRAY,
+                            items: { type: Type.STRING }
+                        },
+                    },
+                },
+            }
+        });
+        
+        const jsonText = response.text.trim();
+        return JSON.parse(jsonText) as AIAnalysisResult;
+
+    } catch (error) {
+        console.error("Error analyzing document with Gemini:", error);
+        throw new Error("Não foi possível analisar o documento. Verifique o arquivo ou tente novamente.");
+    }
+};
