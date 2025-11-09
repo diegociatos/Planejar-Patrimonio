@@ -1,9 +1,14 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
-    <meta charset="utf-t" />
+    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Plataforma de Gestão de Holding Familiar</title>
+    <script>
+      // Polyfill 'process' to prevent crash in environments like Netlify
+      // where it's not defined in the browser. The Gemini SDK expects process.env.API_KEY.
+      window.process = window.process || { env: { API_KEY: "" } };
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
