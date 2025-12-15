@@ -17,16 +17,32 @@ const AssetForm: React.FC<{
 }> = ({ partners, onSave, onCancel, isConsultant }) => {
     
     const [type, setType] = useState<Asset['type']>('property');
-    const [ownerPartnerId, setOwnerPartnerId] = useState('');
+    const [selectedOwnerIds, setSelectedOwnerIds] = useState<string[]>([]);
     const [description, setDescription] = useState('');
     const [value, setValue] = useState<number | ''>('');
     const [marketValue, setMarketValue] = useState<number | ''>('');
     const [documentFile, setDocumentFile] = useState<File | null>(null);
 
+    const handleSelectAll = () => {
+        if (selectedOwnerIds.length === partners.length) {
+            setSelectedOwnerIds([]);
+        } else {
+            setSelectedOwnerIds(partners.map(p => p.id));
+        }
+    };
+
+    const handleOwnerChange = (partnerId: string) => {
+        setSelectedOwnerIds(prev => 
+            prev.includes(partnerId) 
+                ? prev.filter(id => id !== partnerId) 
+                : [...prev, partnerId]
+        );
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!ownerPartnerId || !description || value === '') {
-            alert('Sócio, Descrição e Valor são obrigatórios.');
+        if (selectedOwnerIds.length === 0 || !description || value === '') {
+            alert('Selecione pelo menos um sócio, preencha a descrição e o valor.');
             return;
         }
         if (type !== 'cash' && !documentFile) {
@@ -34,7 +50,11 @@ const AssetForm: React.FC<{
             return;
         }
         const newAsset: Omit<Asset, 'id' | 'status'> = { 
-            type, ownerPartnerId, description, value, documentId: '' 
+            type, 
+            ownerPartnerId: selectedOwnerIds.join(','), 
+            description, 
+            value, 
+            documentId: '' 
         };
         if (marketValue !== '') {
             (newAsset as any).marketValue = marketValue;
@@ -46,7 +66,42 @@ const AssetForm: React.FC<{
         <form onSubmit={handleSubmit} className="p-4 bg-gray-50 border rounded-lg space-y-4 mb-6 animate-fade-in-up">
             <h4 className="font-semibold text-lg text-brand-dark">Adicionar Novo Bem Documentado</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="text-xs">Sócio Proprietário</label><select value={ownerPartnerId} onChange={e => setOwnerPartnerId(e.target.value)} className="w-full text-sm rounded-md border-gray-300"><option value="">Selecione</option>{partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+                <div className="md:col-span-2">
+                    <label className="text-xs font-semibold text-gray-700 mb-1 block">Sócios Proprietários</label>
+                    <div className="bg-white border border-gray-300 rounded-md p-3 max-h-40 overflow-y-auto">
+                        {partners.length > 0 ? (
+                            <>
+                                <div className="flex items-center mb-2 pb-2 border-b border-gray-100">
+                                    <input 
+                                        type="checkbox" 
+                                        id="select-all"
+                                        checked={selectedOwnerIds.length === partners.length} 
+                                        onChange={handleSelectAll}
+                                        className="h-4 w-4 text-brand-secondary rounded border-gray-300 focus:ring-brand-accent cursor-pointer"
+                                    />
+                                    <label htmlFor="select-all" className="ml-2 text-sm font-medium text-gray-700 cursor-pointer">Selecionar Todos</label>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {partners.map(p => (
+                                        <div key={p.id} className="flex items-center">
+                                            <input 
+                                                type="checkbox" 
+                                                id={`partner-${p.id}`}
+                                                checked={selectedOwnerIds.includes(p.id)} 
+                                                onChange={() => handleOwnerChange(p.id)} 
+                                                className="h-4 w-4 text-brand-secondary rounded border-gray-300 focus:ring-brand-accent cursor-pointer"
+                                            />
+                                            <label htmlFor={`partner-${p.id}`} className="ml-2 text-sm text-gray-600 cursor-pointer">{p.name}</label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        ) : (
+                            <p className="text-sm text-gray-500 italic">Nenhum sócio encontrado.</p>
+                        )}
+                    </div>
+                </div>
+                
                 <div><label className="text-xs">Tipo de Bem</label><select value={type} onChange={e => setType(e.target.value as Asset['type'])} className="w-full text-sm rounded-md border-gray-300"><option value="property">Imóvel</option><option value="vehicle">Veículo</option><option value="other">Outro</option></select></div>
                 <div className="md:col-span-2"><label className="text-xs">Descrição Simples</label><input type="text" placeholder="Ex: Apto Leblon, Toyota Hilux 2023" value={description} onChange={e => setDescription(e.target.value)} className="w-full text-sm rounded-md border-gray-300" /></div>
                 <div><label className="text-xs">Valor de Integralização (R$) (Histórico do IR)</label><input type="number" placeholder="Valor declarado no IR" value={value} onChange={e => setValue(e.target.value === '' ? '' : Number(e.target.value))} className="w-full text-sm rounded-md border-gray-300" /></div>
@@ -231,7 +286,7 @@ const Phase3Integralization: React.FC<Phase3IntegralizationProps> = ({ phase, pa
                 url: URL.createObjectURL(documentFile),
                 type: 'pdf', // Assuming pdf for now
                 uploadedAt: new Date().toISOString(),
-                uploadedBy: partners.find(p => p.id === assetData.ownerPartnerId)?.name || 'Cliente',
+                uploadedBy: currentUser.name,
                 phaseId: 3,
                 version: 1,
                 status: 'active',
@@ -361,7 +416,11 @@ const Phase3Integralization: React.FC<Phase3IntegralizationProps> = ({ phase, pa
                                                             }
                                                         </p>
                                                         <p className="text-gray-500">
-                                                            <span className="font-medium">Sócio:</span> {partners.find(p => p.id === asset.ownerPartnerId)?.name || 'N/D'}
+                                                            <span className="font-medium">Sócio(s):</span> {
+                                                                asset.ownerPartnerId
+                                                                    ? asset.ownerPartnerId.split(',').map(id => partners.find(p => p.id === id)?.name || 'Desconhecido').join(', ')
+                                                                    : 'N/D'
+                                                            }
                                                         </p>
                                                     </div>
                                                     {doc && <a href={doc.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline flex items-center mt-2"><Icon name="file-pdf" className="w-3 h-3 mr-1" />{doc.name}</a>}
