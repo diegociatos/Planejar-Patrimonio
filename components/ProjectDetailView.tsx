@@ -75,9 +75,18 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
     const [selectedPhaseId, setSelectedPhaseId] = useState<number>(initialPhaseId || project.currentPhaseId);
     const [isLogModalOpen, setIsLogModalOpen] = useState(false);
     
+    // States for editing project name
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [editedName, setEditedName] = useState(project.name);
+
     useEffect(() => {
         setSelectedPhaseId(initialPhaseId || project.currentPhaseId);
     }, [project.id, initialPhaseId, project.currentPhaseId]);
+
+    // Update local name state if project name updates from outside
+    useEffect(() => {
+        setEditedName(project.name);
+    }, [project.name]);
 
     const selectedPhase = project.phases.find(p => p.id === selectedPhaseId);
     
@@ -130,6 +139,18 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
     };
     
     const isConsultantOnly = currentUser.role === UserRole.CONSULTANT || currentUser.role === UserRole.ADMINISTRATOR;
+
+    const handleSaveName = () => {
+        if (editedName.trim() && editedName !== project.name) {
+            onUpdateProject(project.id, { name: editedName });
+        }
+        setIsEditingName(false);
+    };
+
+    const handleCancelEditName = () => {
+        setEditedName(project.name);
+        setIsEditingName(false);
+    };
 
     const renderPhaseContent = () => {
         // Show decision hub if primary project flow is complete
@@ -224,8 +245,37 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
                     Voltar para o Painel
                 </button>
                 <div className="flex justify-between items-start">
-                    <div>
-                        <h2 className="text-2xl font-bold text-brand-primary">{project.name}</h2>
+                    <div className="flex-grow">
+                        {isEditingName ? (
+                            <div className="flex items-center space-x-2">
+                                <input 
+                                    type="text" 
+                                    value={editedName} 
+                                    onChange={(e) => setEditedName(e.target.value)} 
+                                    className="text-2xl font-bold text-brand-primary border-b-2 border-brand-secondary focus:outline-none px-1 w-full max-w-md"
+                                    autoFocus
+                                />
+                                <button onClick={handleSaveName} className="p-1 text-green-600 hover:bg-green-100 rounded" title="Salvar">
+                                    <Icon name="check" className="w-6 h-6" />
+                                </button>
+                                <button onClick={handleCancelEditName} className="p-1 text-red-600 hover:bg-red-100 rounded" title="Cancelar">
+                                    <Icon name="close" className="w-6 h-6" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center group">
+                                <h2 className="text-2xl font-bold text-brand-primary">{project.name}</h2>
+                                {canEdit && (
+                                    <button 
+                                        onClick={() => setIsEditingName(true)} 
+                                        className="ml-2 p-1 text-gray-400 hover:text-brand-secondary opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
+                                        title="Editar nome do projeto"
+                                    >
+                                        <Icon name="edit" className="w-5 h-5" />
+                                    </button>
+                                )}
+                            </div>
+                        )}
                         <p className="text-sm text-gray-500 mt-1">Clientes: {project.clientIds.map(id => users.find(u => u.id === id)?.name).join(', ')}</p>
                     </div>
                      <div className="flex items-center space-x-3">
