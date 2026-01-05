@@ -475,11 +475,35 @@ const App = () => {
                     initialPhaseId={store.targetPhaseId}
                     onUploadAndLinkDocument={() => {}}
                     onChoosePostCompletionPath={() => {}}
-                    onRemoveMemberFromProject={() => {}}
+                    onRemoveMemberFromProject={(pid, mid) => {
+                        const updatedClientIds = store.selectedProject!.clientIds.filter(id => id !== mid);
+                        store.actions.handleUpdateProject(pid, { clientIds: updatedClientIds });
+                        store.actions.addLogEntry(pid, store.currentUser!.id, `removeu um membro do projeto.`);
+                    }}
                     onUpdateUser={store.actions.handleUpdateUser}
                     availableClients={store.availableClients}
-                    onCreateAndAddMemberToProject={() => {}}
-                    onAddExistingMemberToProject={() => {}}
+                    onCreateAndAddMemberToProject={(data) => {
+                         const newUser: User = {
+                            id: `user-${Date.now()}`,
+                            name: data.name,
+                            email: data.email,
+                            password: data.password || '123',
+                            clientType: data.clientType,
+                            role: UserRole.CLIENT,
+                            requiresPasswordChange: true,
+                        };
+                        store.setAllUsers(prev => [...prev, newUser]);
+                        const pid = store.selectedProject!.id;
+                        store.actions.handleUpdateProject(pid, { clientIds: [...store.selectedProject!.clientIds, newUser.id] });
+                        store.actions.addLogEntry(pid, store.currentUser!.id, `adicionou ${newUser.name} ao projeto.`);
+                    }}
+                    onAddExistingMemberToProject={(uid, type) => {
+                        const pid = store.selectedProject!.id;
+                        store.actions.handleUpdateProject(pid, { clientIds: [...store.selectedProject!.clientIds, uid] });
+                        const user = store.allUsers.find(u => u.id === uid);
+                        store.actions.addLogEntry(pid, store.currentUser!.id, `adicionou ${user?.name || 'membro'} ao projeto.`);
+                    }}
+                    onAddUser={(user) => store.setAllUsers(prev => [...prev, user])}
                 /> : <div>Projeto não encontrado.</div>;
          case 'my_data':
             return <MyDataScreen 
@@ -489,7 +513,7 @@ const App = () => {
                         onUploadUserDocument={() => {}}
                         onDeleteUserDocument={() => {}}
                         onBack={store.actions.handleBackToDashboard}
-                        onChangePassword={() => ({ success: true, message: 'Mock success' })}
+                        onChangePassword={store.actions.handlePasswordChanged}
                         onNavigateToTask={() => {}}
                     />;
         case 'create_client':

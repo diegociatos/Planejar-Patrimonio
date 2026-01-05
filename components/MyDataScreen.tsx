@@ -101,15 +101,19 @@ interface MyDataScreenProps {
   onUploadUserDocument: (userId: string, file: File, category: UserDocumentCategory, categoryLabel: string) => void;
   onDeleteUserDocument: (userId: string, docId: string) => void;
   onBack: () => void;
-  onChangePassword: () => { success: boolean; message: string };
+  onChangePassword: (userId: string, newPassword: string) => void;
   onNavigateToTask: (projectId: string, phaseId: number) => void;
 }
 
-const MyDataScreen: React.FC<MyDataScreenProps> = ({ currentUser, onUpdateUser, onUploadUserDocument, onDeleteUserDocument, onBack }) => {
+const MyDataScreen: React.FC<MyDataScreenProps> = ({ currentUser, onUpdateUser, onUploadUserDocument, onDeleteUserDocument, onBack, onChangePassword }) => {
   const [userData, setUserData] = useState(currentUser);
   const [qualificationData, setQualificationData] = useState<PartnerQualificationData>(currentUser.qualificationData || {});
   
   const [infoMessage, setInfoMessage] = useState({ type: '', text: '' });
+
+  // Password state
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
 
   useEffect(() => {
     setUserData(currentUser);
@@ -153,6 +157,29 @@ const MyDataScreen: React.FC<MyDataScreenProps> = ({ currentUser, onUpdateUser, 
     }
   };
 
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (passwords.new !== passwords.confirm) {
+          alert("A nova senha e a confirmação não coincidem.");
+          return;
+      }
+      if (passwords.new.length < 6) {
+          alert("A nova senha deve ter pelo menos 6 caracteres.");
+          return;
+      }
+      // Simple mock check for current password (assuming '123' if not set in INITIAL_USERS)
+      const currentStoredPassword = currentUser.password || '123';
+      if (passwords.current !== currentStoredPassword) {
+          alert("Senha atual incorreta.");
+          return;
+      }
+
+      onChangePassword(currentUser.id, passwords.new);
+      alert("Senha alterada com sucesso!");
+      setPasswords({ current: '', new: '', confirm: '' });
+      setShowPasswordSection(false);
+  };
+
   const canCompleteData = currentUser.clientType === 'partner' || currentUser.clientType === 'interested';
   const isMarried = qualificationData.maritalStatus === 'casado' || qualificationData.maritalStatus === 'uniao_estavel';
   
@@ -173,7 +200,7 @@ const MyDataScreen: React.FC<MyDataScreenProps> = ({ currentUser, onUpdateUser, 
       
       {canCompleteData && <DataCompletionProgress user={currentUser} />}
 
-        <details className="border rounded-lg group bg-white shadow-lg" open>
+        <details className="border rounded-lg group bg-white shadow-lg mb-6" open>
             <summary className="p-4 cursor-pointer flex justify-between items-center font-semibold text-brand-dark hover:bg-gray-50 text-xl">
                 <span>Meus Dados e Documentos</span>
                 <Icon name="arrow-right" className="w-5 h-5 transition-transform transform group-open:rotate-90" />
@@ -262,6 +289,60 @@ const MyDataScreen: React.FC<MyDataScreenProps> = ({ currentUser, onUpdateUser, 
                     </div>
                 </div>
             </form>
+        </details>
+
+        <details className="border rounded-lg group bg-white shadow-lg">
+            <summary className="p-4 cursor-pointer flex justify-between items-center font-semibold text-brand-dark hover:bg-gray-50 text-xl">
+                <span>Segurança e Senha</span>
+                <Icon name="arrow-right" className="w-5 h-5 transition-transform transform group-open:rotate-90" />
+            </summary>
+            <div className="p-6 border-t">
+                {!showPasswordSection ? (
+                    <button 
+                        onClick={() => setShowPasswordSection(true)}
+                        className="px-4 py-2 bg-brand-secondary text-white rounded-lg font-semibold hover:bg-brand-primary"
+                    >
+                        Alterar minha senha
+                    </button>
+                ) : (
+                    <form onSubmit={handlePasswordSubmit} className="max-w-md space-y-4">
+                        <div>
+                            <label className="text-sm font-medium">Senha Atual</label>
+                            <input 
+                                type="password" 
+                                value={passwords.current} 
+                                onChange={e => setPasswords({...passwords, current: e.target.value})} 
+                                className="mt-1 w-full rounded-md border-gray-300"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Nova Senha</label>
+                            <input 
+                                type="password" 
+                                value={passwords.new} 
+                                onChange={e => setPasswords({...passwords, new: e.target.value})} 
+                                className="mt-1 w-full rounded-md border-gray-300"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Confirmar Nova Senha</label>
+                            <input 
+                                type="password" 
+                                value={passwords.confirm} 
+                                onChange={e => setPasswords({...passwords, confirm: e.target.value})} 
+                                className="mt-1 w-full rounded-md border-gray-300"
+                                required
+                            />
+                        </div>
+                        <div className="flex space-x-3 pt-2">
+                             <button type="button" onClick={() => setShowPasswordSection(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold">Cancelar</button>
+                             <button type="submit" className="px-4 py-2 bg-brand-secondary text-white rounded-lg font-semibold">Salvar Nova Senha</button>
+                        </div>
+                    </form>
+                )}
+            </div>
         </details>
     </div>
   );

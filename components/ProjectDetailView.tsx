@@ -14,8 +14,9 @@ import Phase8Quotas from './Phase8Quotas';
 import Phase9Agreement from './Phase9Agreement';
 import Phase10Support from './Phase10Support';
 import ActivityLogModal from './ActivityLogModal';
+import ManageClientsModal from './ManageClientsModal';
 
-// NEW: Hub component defined within ProjectDetailView
+// Hub component defined within ProjectDetailView
 const PostCompletionHub: React.FC<{
     onChoosePath: (path: 'quotas' | 'agreement') => void;
     userRole: UserRole;
@@ -69,13 +70,14 @@ interface ProjectDetailViewProps {
     availableClients: User[];
     onCreateAndAddMemberToProject: (newClientData: NewClientData) => void;
     onAddExistingMemberToProject: (userId: string, clientType: 'partner' | 'interested') => void;
+    onAddUser: (user: User) => void;
 }
 
-const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentUser, users, onBack, onUpdateProject, onCreateTask, onOpenChat, onAdvancePhase, onUpdatePhaseChat, initialPhaseId, onUploadAndLinkDocument, onChoosePostCompletionPath, onRemoveMemberFromProject, onUpdateUser, availableClients, onCreateAndAddMemberToProject, onAddExistingMemberToProject }) => {
+const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentUser, users, onBack, onUpdateProject, onCreateTask, onOpenChat, onAdvancePhase, onUpdatePhaseChat, initialPhaseId, onUploadAndLinkDocument, onChoosePostCompletionPath, onRemoveMemberFromProject, onUpdateUser, availableClients, onCreateAndAddMemberToProject, onAddExistingMemberToProject, onAddUser }) => {
     const [selectedPhaseId, setSelectedPhaseId] = useState<number>(initialPhaseId || project.currentPhaseId);
     const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+    const [isManageMembersOpen, setIsManageMembersOpen] = useState(false);
     
-    // States for editing project name
     const [isEditingName, setIsEditingName] = useState(false);
     const [editedName, setEditedName] = useState(project.name);
 
@@ -83,7 +85,6 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
         setSelectedPhaseId(initialPhaseId || project.currentPhaseId);
     }, [project.id, initialPhaseId, project.currentPhaseId]);
 
-    // Update local name state if project name updates from outside
     useEffect(() => {
         setEditedName(project.name);
     }, [project.name]);
@@ -103,9 +104,6 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
     }
     
     const canEdit = currentUser.role === UserRole.CONSULTANT || currentUser.role === UserRole.ADMINISTRATOR || currentUser.role === UserRole.AUXILIARY;
-    
-    // A project is read-only if its main status is 'completed', if the user is an interested party,
-    // or on a phase-by-phase basis for clients if that specific phase is completed.
     const isProjectCompleted = project.status === 'completed';
     const isInterestedParty = currentUser.clientType === 'interested';
     const isPhaseCompletedForClient = selectedPhase.status === 'completed' && !canEdit;
@@ -115,19 +113,12 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
         const updatedPhases = project.phases.map(p => {
             if (p.id === selectedPhaseId) {
                 const updatedPhase = { ...p, [phaseKey]: data };
-
-                // SPECIAL HANDLING FOR PHASE 2 DOCS to sync with root documents array
                 if (p.id === 2 && phaseKey === 'phase2Data' && data.documents) {
                     const newDocs: Document[] = [];
                     if (data.documents.contract) newDocs.push(data.documents.contract);
                     if (data.documents.cnpj) newDocs.push(data.documents.cnpj);
-
                     if (newDocs.length > 0) {
-                        // Get existing docs, but filter out any that are being updated
-                        const otherDocs = (updatedPhase.documents || []).filter(
-                            doc => !newDocs.some(newDoc => newDoc.id === doc.id)
-                        );
-                        // Combine old and new, ensuring no duplicates
+                        const otherDocs = (updatedPhase.documents || []).filter(doc => !newDocs.some(newDoc => newDoc.id === doc.id));
                         updatedPhase.documents = [...otherDocs, ...newDocs];
                     }
                 }
@@ -153,33 +144,27 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
     };
 
     const renderPhaseContent = () => {
-        // Show decision hub if primary project flow is complete
         if (project.postCompletionStatus === 'pending_choice' && selectedPhaseId === 7) {
             return <PostCompletionHub userRole={currentUser.role} onChoosePath={(path) => onChoosePostCompletionPath(project.id, path)} />;
         }
 
         const phase2Data = project.phases.find(p => p.id === 2)?.phase2Data;
         const phase3Data = project.phases.find(p => p.id === 3)?.phase3Data;
-        const partners = (phase2Data?.partners || []).map(p => {
-            const user = users.find(u => u.id === p.userId);
-            return { id: user?.id || '', name: user?.name || 'Sócio não encontrado' }
-        }).filter(p => p.id);
+        
+        // FIX: Derive partners directly from the project's member list (clientIds) 
+        // to ensure anyone added via "Gerenciar Membros" appears in Phase 3 immediately.
+        const partners = users
+            .filter(u => project.clientIds.includes(u.id) && u.clientType === 'partner')
+            .map(u => ({ id: u.id, name: u.name }));
         
         const declaredCapital = Number(phase2Data?.companyData?.capital) || 0;
         const assets = phase3Data?.assets || [];
         const properties = assets.filter(a => a.type === 'property') as PropertyAsset[];
         
         const handleOpenChatWithQuestion = (question: string) => {
-            // This function should ideally send the question to the AI chat
             onOpenChat('client');
         };
 
-        const handleCreateTaskForAuxiliary = (phaseId: number, description: string) => {
-            if (project.auxiliaryId) {
-                onCreateTask(project.id, phaseId, description, project.auxiliaryId);
-            }
-        };
-        
         const updatePhase1Data = (data: Partial<Phase1Data>) => {
              const updatedPhases = project.phases.map(p => 
                 p.id === 1 ? { ...p, phase1Data: { ...p.phase1Data, ...data } } : p
@@ -189,7 +174,23 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
 
         switch (selectedPhase.id) {
             case 1:
-                return <Phase1Diagnostic project={project} phase={selectedPhase} userRole={currentUser.role} currentUser={currentUser} users={users} onUpdateUser={onUpdateUser} canEdit={canEdit} onBackToDashboard={onBack} onUpdateData={updatePhase1Data} onOpenChatWithQuestion={handleOpenChatWithQuestion} isReadOnly={isReadOnly} onCreateTask={(description) => onCreateTask(project.id, selectedPhase.id, description, project.auxiliaryId)} onRemoveMember={(memberId) => onRemoveMemberFromProject(project.id, memberId)} onUpdateProject={(data) => onUpdateProject(project.id, data)} />;
+                return <Phase1Diagnostic 
+                            project={project} 
+                            phase={selectedPhase} 
+                            userRole={currentUser.role} 
+                            currentUser={currentUser} 
+                            users={users} 
+                            onUpdateUser={onUpdateUser} 
+                            canEdit={canEdit} 
+                            onBackToDashboard={onBack} 
+                            onUpdateData={updatePhase1Data} 
+                            onOpenChatWithQuestion={handleOpenChatWithQuestion} 
+                            isReadOnly={isReadOnly} 
+                            onCreateTask={(description) => onCreateTask(project.id, selectedPhase.id, description, project.auxiliaryId)} 
+                            onRemoveMember={(memberId) => onRemoveMemberFromProject(project.id, memberId)} 
+                            onUpdateProject={(data) => onUpdateProject(project.id, data)}
+                            onManageMembers={() => setIsManageMembersOpen(true)}
+                        />;
             case 2:
                 return <Phase2Constitution phase={selectedPhase} project={project} currentUser={currentUser} users={users} canEdit={canEdit} onBackToDashboard={onBack} onUpdateData={(data) => handlePhaseDataUpdate('phase2Data', data)} isReadOnly={isReadOnly} onRemoveMember={(memberId) => onRemoveMemberFromProject(project.id, memberId)} availableClients={availableClients} onCreateAndAddMember={onCreateAndAddMemberToProject} onAddExistingMember={onAddExistingMemberToProject} />;
             case 3:
@@ -197,29 +198,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
             case 4:
                 return <Phase4Minuta phase={selectedPhase} project={project} currentUser={currentUser} users={users} canEdit={canEdit} onUpdateData={(data) => handlePhaseDataUpdate('phase4Data', data)} onUpdatePhaseChat={(content) => onUpdatePhaseChat(project.id, 4, content)} isReadOnly={isReadOnly} />;
             case 5:
-                 return <Phase5ITBI 
-                    phase={selectedPhase} 
-                    project={project} 
-                    properties={properties} 
-                    userRole={currentUser.role} 
-                    canEdit={canEdit} 
-                    onUpdateData={(data, docs, proc) => onUpdateProject(project.id, { phases: project.phases.map(p => p.id === 5 ? { ...p, phase5Data: { ...p.phase5Data, ...data }} : p) }, proc)} 
-                    onOpenChatWithQuestion={handleOpenChatWithQuestion} 
-                    onUploadAndLinkDocument={onUploadAndLinkDocument} 
-                    isReadOnly={isReadOnly}
-                />;
+                 return <Phase5ITBI phase={selectedPhase} project={project} properties={properties} userRole={currentUser.role} canEdit={canEdit} onUpdateData={(data, docs, proc) => onUpdateProject(project.id, { phases: project.phases.map(p => p.id === 5 ? { ...p, phase5Data: { ...p.phase5Data, ...data }} : p) }, proc)} onOpenChatWithQuestion={handleOpenChatWithQuestion} onUploadAndLinkDocument={onUploadAndLinkDocument} isReadOnly={isReadOnly} />;
             case 6:
-                return <Phase6Registration 
-                    phase={selectedPhase} 
-                    project={project} 
-                    properties={properties} 
-                    userRole={currentUser.role} 
-                    canEdit={canEdit} 
-                    onUpdateData={(data, proc) => onUpdateProject(project.id, { phases: project.phases.map(p => p.id === 6 ? { ...p, phase6Data: { ...p.phase6Data, ...data }} : p) }, undefined, proc)} 
-                    onOpenChatWithQuestion={handleOpenChatWithQuestion}
-                    onUploadAndLinkDocument={onUploadAndLinkDocument}
-                    isReadOnly={isReadOnly}
-                />;
+                return <Phase6Registration phase={selectedPhase} project={project} properties={properties} userRole={currentUser.role} canEdit={canEdit} onUpdateData={(data, proc) => onUpdateProject(project.id, { phases: project.phases.map(p => p.id === 6 ? { ...p, phase6Data: { ...p.phase6Data, ...data }} : p) }, undefined, proc)} onOpenChatWithQuestion={handleOpenChatWithQuestion} onUploadAndLinkDocument={onUploadAndLinkDocument} isReadOnly={isReadOnly} />;
             case 7:
                 return <Phase7Conclusion phase={selectedPhase} project={project} userRole={currentUser.role} canEdit={canEdit} onBackToDashboard={onBack} onUpdateData={(data) => handlePhaseDataUpdate('phase7Data', data)} onOpenChatWithQuestion={handleOpenChatWithQuestion} isReadOnly={isReadOnly} />;
             case 8:
@@ -233,7 +214,6 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
         }
     };
     
-    // Logic to determine if the "Advance Phase" button should be shown
     const canAdvancePhase = isConsultantOnly && selectedPhase.status !== 'completed' && selectedPhase.id < 7;
 
 
@@ -279,6 +259,11 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
                         <p className="text-sm text-gray-500 mt-1">Clientes: {project.clientIds.map(id => users.find(u => u.id === id)?.name).join(', ')}</p>
                     </div>
                      <div className="flex items-center space-x-3">
+                        {canEdit && (
+                            <button onClick={() => setIsManageMembersOpen(true)} className="flex items-center text-sm font-medium text-brand-secondary bg-white border border-gray-300 hover:bg-gray-100 px-3 py-1.5 rounded-lg">
+                                <Icon name="users" className="w-4 h-4 mr-2" />Gerenciar Membros
+                            </button>
+                        )}
                         <button onClick={() => setIsLogModalOpen(true)} className="flex items-center text-sm font-medium text-brand-secondary bg-white border border-gray-300 hover:bg-gray-100 px-3 py-1.5 rounded-lg"><Icon name="pending" className="w-4 h-4 mr-2" />Ver Histórico</button>
                         <button onClick={() => onOpenChat('client')} className="flex items-center text-sm font-medium text-white bg-brand-secondary hover:bg-brand-primary px-3 py-1.5 rounded-lg"><Icon name="chat" className="w-4 h-4 mr-2" />Chat com Cliente</button>
                         {canEdit && project.auxiliaryId && <button onClick={() => onOpenChat('internal')} className="flex items-center text-sm font-medium text-brand-secondary bg-white border border-gray-300 hover:bg-gray-100 px-3 py-1.5 rounded-lg"><Icon name="chat" className="w-4 h-4 mr-2" />Chat Interno</button>}
@@ -329,6 +314,15 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
                 onClose={() => setIsLogModalOpen(false)}
                 log={project.activityLog || []}
                 users={users}
+            />
+
+            <ManageClientsModal 
+                isOpen={isManageMembersOpen}
+                onClose={() => setIsManageMembersOpen(false)}
+                project={project}
+                onUpdateProject={onUpdateProject}
+                allUsers={users}
+                onAddUser={onAddUser}
             />
         </div>
     );

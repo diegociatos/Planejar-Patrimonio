@@ -83,7 +83,7 @@ const StepIndicator: React.FC<{ number: number; title: string; isComplete: boole
         <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-4 flex-shrink-0 ${isActive ? 'bg-brand-secondary text-white' : isComplete ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}`}>
             {isComplete ? <Icon name="check" className="w-5 h-5" /> : <span className="font-bold">{number}</span>}
         </div>
-        <div>
+        <div className="flex-grow">
             <p className={`font-semibold ${isActive ? 'text-brand-primary' : 'text-gray-800'}`}>{title}</p>
             <p className="text-sm text-gray-500">{isActive ? 'Ação necessária' : isComplete ? 'Concluído' : 'Pendente'}</p>
         </div>
@@ -190,7 +190,7 @@ const MeetingMinutesModal: React.FC<MeetingMinutesModalProps> = ({ initialMinute
 const isPartnerDataComplete = (user: User): boolean => {
     if (!user || user.clientType !== 'partner' || !user.qualificationData) return false;
     const q = user.qualificationData;
-    const hasBaseData = q.cpf && q.rg && q.maritalStatus && q.birthDate && q.nationality && q.address;
+    const hasBaseData = q.cpf && q.rg && q.birthDate && q.nationality && q.address;
     if (!hasBaseData) return false;
     if ((q.maritalStatus === 'casado' || q.maritalStatus === 'uniao_estavel') && !q.propertyRegime) return false;
     return true;
@@ -263,9 +263,10 @@ interface Phase1DiagnosticProps {
   currentUser: User;
   onRemoveMember: (memberId: string) => void;
   onUpdateProject: (data: Partial<Project>) => void;
+  onManageMembers: () => void;
 }
 
-const Phase1Diagnostic: React.FC<Phase1DiagnosticProps> = ({ project, phase, userRole, canEdit, onBackToDashboard, onUpdateData, onOpenChatWithQuestion, isReadOnly, onCreateTask, users, onUpdateUser, currentUser, onRemoveMember, onUpdateProject }) => {
+const Phase1Diagnostic: React.FC<Phase1DiagnosticProps> = ({ project, phase, userRole, canEdit, onBackToDashboard, onUpdateData, onOpenChatWithQuestion, isReadOnly, onCreateTask, users, onUpdateUser, currentUser, onRemoveMember, onUpdateProject, onManageMembers }) => {
     
     const diagnosticData = phase.phase1Data || {};
     const [isMinutesModalOpen, setIsMinutesModalOpen] = useState(false);
@@ -311,7 +312,6 @@ const Phase1Diagnostic: React.FC<Phase1DiagnosticProps> = ({ project, phase, use
         onUpdateProject({ auxiliaryId: newAuxiliaryId === 'none' ? undefined : newAuxiliaryId });
     };
 
-    // Corrected read-only logic for the form section
     const isFormSectionReadOnly = canEdit 
         ? isReadOnly 
         : (isReadOnly || !!diagnosticData.isFormCompleted);
@@ -328,12 +328,18 @@ const Phase1Diagnostic: React.FC<Phase1DiagnosticProps> = ({ project, phase, use
                     <p className="text-gray-600 mb-8">{phase.description}</p>
                     
                     <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8`}>
-                        {/* Coluna Principal: Ações */}
                         <div className="lg:col-span-2 space-y-6">
                             
                             {/* Passo 1: Verificação de Dados */}
                             <div className="p-4 border rounded-xl">
-                                <StepIndicator number={1} title="Verificação de Dados dos Membros" isComplete={allPartnersDataComplete} isActive={!allPartnersDataComplete} />
+                                <div className="flex justify-between items-center mb-4">
+                                    <StepIndicator number={1} title="Verificação de Dados dos Membros" isComplete={allPartnersDataComplete} isActive={!allPartnersDataComplete} />
+                                    {canEdit && (
+                                        <button onClick={onManageMembers} className="flex items-center text-sm font-bold text-brand-secondary hover:underline">
+                                            <Icon name="user-plus" className="w-4 h-4 mr-1"/> Adicionar/Remover Membros
+                                        </button>
+                                    )}
+                                </div>
                                 {canEdit && (
                                     <div className="mt-4 p-4 border rounded-lg bg-gray-50">
                                         <h4 className="font-semibold text-brand-dark mb-3">Equipe de Gestão</h4>
@@ -489,7 +495,6 @@ const Phase1Diagnostic: React.FC<Phase1DiagnosticProps> = ({ project, phase, use
                              </div>
                         </div>
 
-                        {/* Coluna Lateral: Ajuda e Visão do Consultor */}
                         <div className="space-y-6">
                             {canEdit && (
                                 <AIAnalysisSection
