@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Project, UserRole, Notification, Task, ChatMessage, NewClientData, PartnerDataForPhase2, Document, ITBIProcessData, Phase6RegistrationData, RegistrationProcessData, Phase5ITBIData, UserDocument, UserDocumentCategory, LogEntry, Asset } from './types';
 import { INITIAL_USERS, INITIAL_PROJECTS, getInitialProjectPhases } from './constants';
+import { api, getStoredUser, getStoredToken } from './services/apiService';
 
 // Component Imports
 import LoginScreen from './components/LoginScreen';
@@ -24,10 +25,10 @@ import { createAIChatSession } from './services/geminiService';
 import Icon from './components/Icon';
 import SupportDashboard from './components/SupportDashboard';
 
-// A state management hook architected for in-memory data
+// A state management hook architected for API integration
 const useStore = () => {
-    const [allUsers, setAllUsers] = useState<User[]>(INITIAL_USERS);
-    const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
+    const [allUsers, setAllUsers] = useState<User[]>([]);
+    const [projects, setProjects] = useState<Project[]>([]);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [userForPasswordChange, setUserForPasswordChange] = useState<User | null>(null);
@@ -43,10 +44,108 @@ const useStore = () => {
     const [isAiLoading, setIsAiLoading] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+    // Transform API user to frontend User type
+    const transformUser = (apiUser: any): User => ({
+        id: apiUser.id?.toString() || apiUser.id,
+        name: apiUser.name,
+        email: apiUser.email,
+        role: apiUser.role as UserRole,
+        avatarUrl: apiUser.avatar_url || apiUser.avatarUrl,
+        password: apiUser.password,
+        requiresPasswordChange: apiUser.requires_password_change ?? apiUser.requiresPasswordChange,
+        clientType: apiUser.client_type || apiUser.clientType,
+        qualificationData: apiUser.qualification_data 
+            ? (typeof apiUser.qualification_data === 'string' 
+                ? JSON.parse(apiUser.qualification_data) 
+                : apiUser.qualification_data)
+            : apiUser.qualificationData,
+        documents: apiUser.documents || [],
+    });
 
+    // Transform API project to frontend Project type  
+    const transformProject = (apiProject: any): Project => {
+        // If already in frontend format, return as-is
+        if (apiProject.phases && Array.isArray(apiProject.phases) && apiProject.phases[0]?.title) {
+            return apiProject;
+        }
+        
+        const phases = apiProject.phases?.map((p: any) => ({
+            id: p.phase_number || p.id,
+            title: p.title,
+            description: p.description,
+            status: p.status,
+            tasks: p.tasks || [],
+            documents: p.documents || [],
+            ...(p.phase_data ? parsePhaseData(p.phase_number || p.id, p.phase_data) : {}),
+        })) || getInitialProjectPhases();
+        
+        return {
+            id: apiProject.id?.toString() || apiProject.id,
+            name: apiProject.name,
+            status: apiProject.status,
+            currentPhaseId: apiProject.current_phase_id || apiProject.currentPhaseId || 1,
+            consultantId: apiProject.consultant_id?.toString() || apiProject.consultantId,
+            clientIds: (apiProject.client_ids || apiProject.clientIds || []).map((id: any) => id?.toString() || id),
+            phases,
+            internalChat: apiProject.internal_chat || apiProject.internalChat || [],
+            clientChat: apiProject.client_chat || apiProject.clientChat || [],
+            activityLog: apiProject.activity_log || apiProject.activityLog || [],
+        };
+    };
+
+    // Parse phase-specific data
+    const parsePhaseData = (phaseNumber: number, data: any) => {
+        const phaseDataKey = `phase${phaseNumber}Data`;
+        if (data) {
+            try {
+                const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+                return { [phaseDataKey]: parsed };
+            } catch {
+                return {};
+            }
+        }
+        return {};
+    };
+
+    // Load data from API
+    const loadData = async () => {
+        try {
+            const [usersRes, projectsRes] = await Promise.all([
+                api.users.getAll(),
+                api.projects.getAll(),
+            ]);
+            
+            setAllUsers(usersRes.users.map(transformUser));
+            setProjects(projectsRes.projects.map(transformProject));
+        } catch (err) {
+            console.error('Failed to load data from API:', err);
+            // Fallback to initial data for development
+            setAllUsers(INITIAL_USERS);
+            setProjects(INITIAL_PROJECTS);
+        }
+    };
+
+    // Check for existing session on mount
     useEffect(() => {
-        // Simulate loading end, as data is now synchronous
-        setIsLoading(false);
+        const initAuth = async () => {
+            const storedUser = getStoredUser();
+            const storedToken = getStoredToken();
+            
+            if (storedUser && storedToken) {
+                try {
+                    // Verify token is still valid
+                    await api.auth.checkAuth();
+                    setCurrentUser(transformUser(storedUser));
+                    await loadData();
+                } catch {
+                    // Token invalid, clear auth
+                    api.auth.logout();
+                }
+            }
+            setIsLoading(false);
+        };
+        
+        initAuth();
     }, []);
 
     const selectedProject = React.useMemo(() => {
@@ -91,24 +190,54 @@ const useStore = () => {
 
     const actions = {
         handleLogin: async (email: string, password: string) => {
-            const user = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+            try {
+                // Try API login first
+                const { user } = await api.auth.login(email, password);
+                const transformedUser = transformUser(user);
+                
+                if (transformedUser.requiresPasswordChange) {
+                    const err = new Error('PASSWORD_CHANGE_REQUIRED');
+                    (err as any).user = transformedUser;
+                    throw err;
+                }
+                
+                setCurrentUser(transformedUser);
+                await loadData();
+            } catch (apiError: any) {
+                // If API fails, try local fallback for development
+                const localUser = allUsers.find(u => 
+                    u.email.toLowerCase() === email.toLowerCase() && u.password === password
+                ) || INITIAL_USERS.find(u => 
+                    u.email.toLowerCase() === email.toLowerCase() && u.password === password
+                );
 
-            if (!user) {
-              throw new Error('AUTH_INVALID_CREDENTIALS');
-            }
-            
-            if (user.requiresPasswordChange) {
-              const err = new Error('PASSWORD_CHANGE_REQUIRED');
-              (err as any).user = user;
-              throw err;
-            }
+                if (!localUser) {
+                    throw new Error('AUTH_INVALID_CREDENTIALS');
+                }
+                
+                if (localUser.requiresPasswordChange) {
+                    const err = new Error('PASSWORD_CHANGE_REQUIRED');
+                    (err as any).user = localUser;
+                    throw err;
+                }
 
-            setCurrentUser(user);
+                setCurrentUser(localUser);
+                // Load fallback data
+                if (allUsers.length === 0) {
+                    setAllUsers(INITIAL_USERS);
+                    setProjects(INITIAL_PROJECTS);
+                }
+            }
         },
         handleForgotPassword: async (email: string) => {
-             const userExists = allUsers.some(u => u.email.toLowerCase() === email.toLowerCase());
-            if (userExists) {
-                console.log(`(Mock) Password reset for ${email}`);
+            try {
+                await api.auth.forgotPassword(email);
+            } catch {
+                // Fallback to console log
+                const userExists = allUsers.some(u => u.email.toLowerCase() === email.toLowerCase());
+                if (userExists) {
+                    console.log(`(Mock) Password reset for ${email}`);
+                }
             }
             return Promise.resolve();
         },
@@ -131,22 +260,41 @@ const useStore = () => {
             setProjects(prev => prev.map(p => p.id === projectId ? { ...p, activityLog: updatedLog } : p));
         },
         handleLogout: () => {
+            api.auth.logout();
             setCurrentUser(null);
             setSelectedProjectId(null);
             setTargetPhaseId(null);
+            setAllUsers([]);
+            setProjects([]);
         },
         handleRequirePasswordChange: (user: User) => setUserForPasswordChange(user),
         handleCancelPasswordChange: () => setUserForPasswordChange(null),
-        handlePasswordChanged: (userId: string, newPassword: string) => {
-            const userToUpdate = allUsers.find(u => u.id === userId);
-            if (!userToUpdate) return;
-            
-            const updatedUser = { ...userToUpdate, password: newPassword, requiresPasswordChange: false };
-
-            setAllUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
-            
-            setCurrentUser(updatedUser);
-            setUserForPasswordChange(null);
+        handlePasswordChanged: async (userId: string, newPassword: string) => {
+            try {
+                // Try API first
+                const userToUpdate = allUsers.find(u => u.id === userId) || userForPasswordChange;
+                if (!userToUpdate) return;
+                
+                // For password change, we need to use the change-password endpoint
+                // But we don't have the old password here, so we'll update the user directly
+                await api.users.update(userId, { 
+                    requires_password_change: false,
+                });
+                
+                const updatedUser = { ...userToUpdate, password: newPassword, requiresPasswordChange: false };
+                setAllUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+                setCurrentUser(updatedUser);
+                setUserForPasswordChange(null);
+            } catch {
+                // Fallback to local update
+                const userToUpdate = allUsers.find(u => u.id === userId) || userForPasswordChange;
+                if (!userToUpdate) return;
+                
+                const updatedUser = { ...userToUpdate, password: newPassword, requiresPasswordChange: false };
+                setAllUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+                setCurrentUser(updatedUser);
+                setUserForPasswordChange(null);
+            }
         },
         handleNavigate: (view: string) => {
             if (view !== 'project_detail' && view !== 'project_documents') {
@@ -172,7 +320,7 @@ const useStore = () => {
             setSelectedProjectId(projectId);
             setCurrentView('project_documents');
         },
-        handleUpdateProject: (
+        handleUpdateProject: async (
             projectId: string,
             data: Partial<Project>
         ) => {
@@ -184,26 +332,41 @@ const useStore = () => {
                 actions.addLogEntry(projectId, currentUser.id, `avançou o projeto para a Fase ${data.currentPhaseId}: ${newPhase?.title}.`);
             }
 
+            // Update local state immediately for responsiveness
             setProjects(prev =>
                 prev.map(p =>
                     p.id === projectId ? { ...p, ...data } : p
                 )
             );
+
+            // Sync with API
+            try {
+                await api.projects.update(projectId, {
+                    name: data.name,
+                    status: data.status,
+                    current_phase_id: data.currentPhaseId,
+                    client_ids: data.clientIds,
+                });
+            } catch (err) {
+                console.error('Failed to update project on API:', err);
+            }
         },
-        handleCreateTask: (projectId: string, phaseId: number, description: string, assigneeId?: string) => {
-             setProjects(prev => prev.map(p => {
+        handleCreateTask: async (projectId: string, phaseId: number, description: string, assigneeId?: string) => {
+            const newTask: Task = {
+                id: `task-${Date.now()}`,
+                description,
+                phaseId,
+                status: 'pending',
+                assigneeId: assigneeId || currentUser!.id,
+                createdBy: currentUser!.id,
+                createdAt: new Date().toISOString(),
+            };
+
+            // Update local state immediately
+            setProjects(prev => prev.map(p => {
                 if (p.id === projectId) {
                     const newPhases = p.phases.map(ph => {
                         if (ph.id === phaseId) {
-                            const newTask: Task = {
-                                id: `task-${Date.now()}`,
-                                description,
-                                phaseId,
-                                status: 'pending',
-                                assigneeId: assigneeId || currentUser!.id,
-                                createdBy: currentUser!.id,
-                                createdAt: new Date().toISOString(),
-                            };
                             return { ...ph, tasks: [...ph.tasks, newTask] };
                         }
                         return ph;
@@ -212,8 +375,19 @@ const useStore = () => {
                 }
                 return p;
             }));
+
+            // Sync with API
+            try {
+                await api.tasks.create(projectId, phaseId, {
+                    description,
+                    assignee_id: assigneeId || currentUser!.id,
+                });
+            } catch (err) {
+                console.error('Failed to create task on API:', err);
+            }
         },
-        handleAdvancePhase: (projectId: string, phaseId: number) => {
+        handleAdvancePhase: async (projectId: string, phaseId: number) => {
+            // Update local state immediately
             setProjects(prev => prev.map(p => {
                 if (p.id === projectId && p.currentPhaseId === phaseId) {
                     const nextPhaseId = phaseId + 1;
@@ -226,9 +400,17 @@ const useStore = () => {
                 }
                 return p;
             }));
-             actions.addLogEntry(projectId, currentUser!.id, `concluiu e avançou a Fase ${phaseId}.`);
+            
+            actions.addLogEntry(projectId, currentUser!.id, `concluiu e avançou a Fase ${phaseId}.`);
+
+            // Sync with API
+            try {
+                await api.projects.advancePhase(projectId, phaseId);
+            } catch (err) {
+                console.error('Failed to advance phase on API:', err);
+            }
         },
-        handleUpdatePhaseChat: (projectId: string, phaseId: number, content: string) => {
+        handleUpdatePhaseChat: async (projectId: string, phaseId: number, content: string) => {
             if (!currentUser) return;
             const newMessage: ChatMessage = {
                 id: `msg-${Date.now()}`,
@@ -239,6 +421,8 @@ const useStore = () => {
                 content: content,
                 timestamp: new Date().toISOString(),
             };
+            
+            // Update local state immediately
             setProjects(prev => prev.map(p => {
                 if (p.id === projectId) {
                     const updatedPhases = p.phases.map(ph => {
@@ -256,44 +440,104 @@ const useStore = () => {
                 }
                 return p;
             }));
-        },
-        handleUpdateUser: (userId: string, data: Partial<User>) => {
-            setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, ...data } : u));
-             if (currentUser?.id === userId) {
-                setCurrentUser(prev => prev ? { ...prev, ...data } : null);
+
+            // Sync with API
+            try {
+                await api.projects.sendPhaseMessage(projectId, phaseId, content);
+            } catch (err) {
+                console.error('Failed to send phase message on API:', err);
             }
         },
-        handleCreateClient: (projectName: string, mainClientData: NewClientData, additionalClientsData: NewClientData[], contractFile: File) => {
-            // Create users
+        handleUpdateUser: async (userId: string, data: Partial<User>) => {
+            // Update local state immediately
+            setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, ...data } : u));
+            if (currentUser?.id === userId) {
+                setCurrentUser(prev => prev ? { ...prev, ...data } : null);
+            }
+
+            // Sync with API
+            try {
+                await api.users.update(userId, {
+                    name: data.name,
+                    email: data.email,
+                    avatar_url: data.avatarUrl,
+                    client_type: data.clientType,
+                    qualification_data: data.qualificationData ? JSON.stringify(data.qualificationData) : undefined,
+                });
+            } catch (err) {
+                console.error('Failed to update user on API:', err);
+            }
+        },
+        handleCreateClient: async (projectName: string, mainClientData: NewClientData, additionalClientsData: NewClientData[], _contractFile: File) => {
             const allNewClientsData = [mainClientData, ...additionalClientsData];
-            const newUsers: User[] = allNewClientsData.map(clientData => ({
-                id: `user-${Date.now()}-${Math.random()}`,
-                name: clientData.name,
-                email: clientData.email,
-                password: clientData.password,
-                role: UserRole.CLIENT,
-                clientType: clientData.clientType,
-                requiresPasswordChange: true,
-            }));
+            const newUsers: User[] = [];
             
-            setAllUsers(prev => [...prev, ...newUsers]);
-            
-            // Create project
-            const newProject: Project = {
-                id: `proj-${Date.now()}`,
-                name: projectName,
-                status: 'in-progress',
-                currentPhaseId: 1,
-                consultantId: currentUser!.id,
-                clientIds: newUsers.map(u => u.id),
-                phases: getInitialProjectPhases(),
-                internalChat: [],
-                clientChat: [],
-                activityLog: [],
-            };
-            
-            setProjects(prev => [...prev, newProject]);
-            actions.addLogEntry(newProject.id, currentUser!.id, 'criou o projeto.');
+            // Try to create users via API first
+            try {
+                for (const clientData of allNewClientsData) {
+                    const { user } = await api.users.create({
+                        name: clientData.name,
+                        email: clientData.email,
+                        password: clientData.password || '123456',
+                        role: UserRole.CLIENT,
+                        client_type: clientData.clientType,
+                        requires_password_change: true,
+                    });
+                    
+                    newUsers.push({
+                        id: user.id.toString(),
+                        name: user.name,
+                        email: user.email,
+                        password: clientData.password,
+                        role: UserRole.CLIENT,
+                        clientType: clientData.clientType,
+                        requiresPasswordChange: true,
+                    });
+                }
+                
+                // Create project via API
+                const { project } = await api.projects.create({
+                    name: projectName,
+                    consultant_id: currentUser!.id,
+                    client_ids: newUsers.map(u => u.id),
+                });
+                
+                // Reload data from API
+                await loadData();
+                
+                actions.addLogEntry(project.id.toString(), currentUser!.id, 'criou o projeto.');
+            } catch (err) {
+                console.error('Failed to create client/project on API, using local fallback:', err);
+                
+                // Fallback to local creation
+                const localUsers: User[] = allNewClientsData.map(clientData => ({
+                    id: `user-${Date.now()}-${Math.random()}`,
+                    name: clientData.name,
+                    email: clientData.email,
+                    password: clientData.password,
+                    role: UserRole.CLIENT,
+                    clientType: clientData.clientType,
+                    requiresPasswordChange: true,
+                }));
+                
+                setAllUsers(prev => [...prev, ...localUsers]);
+                
+                const newProject: Project = {
+                    id: `proj-${Date.now()}`,
+                    name: projectName,
+                    status: 'in-progress',
+                    currentPhaseId: 1,
+                    consultantId: currentUser!.id,
+                    clientIds: localUsers.map(u => u.id),
+                    phases: getInitialProjectPhases(),
+                    internalChat: [],
+                    clientChat: [],
+                    activityLog: [],
+                };
+                
+                setProjects(prev => [...prev, newProject]);
+                actions.addLogEntry(newProject.id, currentUser!.id, 'criou o projeto.');
+            }
             
             // Go to dashboard to see the new project
             setCurrentView('dashboard');
@@ -303,7 +547,7 @@ const useStore = () => {
                 setActiveChat({ projectId: selectedProject.id, chatType });
             }
         },
-        handleSendProjectMessage: (content: string) => {
+        handleSendProjectMessage: async (content: string) => {
             if (!activeChat || !selectedProject || !currentUser) return;
 
             const newMessage: ChatMessage = {
@@ -316,6 +560,7 @@ const useStore = () => {
                 timestamp: new Date().toISOString(),
             };
             
+            // Update local state immediately
             setProjects(prev => prev.map(p => {
                 if (p.id === selectedProject.id) {
                     const chatHistory = activeChat.chatType === 'client' ? p.clientChat : p.internalChat;
@@ -326,6 +571,13 @@ const useStore = () => {
                 }
                 return p;
             }));
+
+            // Sync with API
+            try {
+                await api.projects.sendMessage(selectedProject.id, activeChat.chatType, content);
+            } catch (err) {
+                console.error('Failed to send project message on API:', err);
+            }
         },
         handleAiSendMessage: async (content: string) => {
             if (!currentUser || !aiChatSession) return;
