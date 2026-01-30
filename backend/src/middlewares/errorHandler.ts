@@ -15,10 +15,9 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
-  // Log error in development
-  if (env.isDevelopment) {
-    console.error('Error:', err);
-  }
+  // Always log errors for debugging
+  console.error('Error:', err.message);
+  console.error('Stack:', err.stack);
 
   // Handle operational errors (AppError)
   if (err instanceof AppError) {

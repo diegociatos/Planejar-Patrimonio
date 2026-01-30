@@ -241,7 +241,9 @@ export class ProjectService {
     );
     return transformRows<Phase>(rows).map(phase => ({
       ...phase,
-      phaseData: phase.phaseData ? JSON.parse(phase.phaseData as any) : null,
+      phaseData: phase.phaseData 
+        ? (typeof phase.phaseData === 'string' ? JSON.parse(phase.phaseData) : phase.phaseData)
+        : null,
     }));
   }
 
@@ -258,7 +260,9 @@ export class ProjectService {
     const phase = transformRow<Phase>(row);
     return {
       ...phase,
-      phaseData: phase.phaseData ? JSON.parse(phase.phaseData as any) : null,
+      phaseData: phase.phaseData 
+        ? (typeof phase.phaseData === 'string' ? JSON.parse(phase.phaseData) : phase.phaseData)
+        : null,
     };
   }
 

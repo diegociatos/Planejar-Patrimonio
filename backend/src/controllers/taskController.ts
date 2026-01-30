@@ -64,14 +64,20 @@ export class TaskController {
   }
 
   /**
-   * GET /api/projects/:projectId/phases/:phaseId/tasks
+   * GET /api/projects/:projectId/phases/:phaseNumber/tasks
    * Get tasks for a phase
    */
   async getByPhase(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { phaseId } = req.params;
+      const { projectId, phaseNumber } = req.params;
 
-      const tasks = await taskService.findByPhaseWithDetails(phaseId);
+      // Get phase ID from project and phase number
+      const phase = await projectService.getPhase(projectId, parseInt(phaseNumber));
+      if (!phase || !phase.id) {
+        throw new NotFoundError('Fase não encontrada');
+      }
+
+      const tasks = await taskService.findByPhaseWithDetails(phase.id);
 
       res.status(200).json({
         success: true,
