@@ -1,0 +1,43 @@
+# ===========================================
+# Planejar Patrimônio - Docker Compose (DEV)
+# ===========================================
+# Uso: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# ===========================================
+
+version: '3.8'
+
+services:
+  # ===========================================
+  # Backend API (Development)
+  # ===========================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: planejar_api_dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - uploads_data:/app/uploads
+    command: npm run dev
+
+  # ===========================================
+  # phpMyAdmin (Database Management)
+  # ===========================================
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: planejar_phpmyadmin
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+    ports:
+      - "8080:80"
+    networks:
+      - planejar_network
