@@ -4,6 +4,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { userService } from '../services/userService.js';
+import { sendWelcomeEmail } from '../services/emailService.js';
 import { omit, generateRandomPassword } from '../utils/helpers.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 import { UserRole } from '../types/index.js';
@@ -83,6 +84,15 @@ export class UserController {
         clientType,
         requiresPasswordChange: true,
       });
+
+      // Send welcome email with credentials
+      try {
+        await sendWelcomeEmail(email, name, userPassword);
+        console.log(`Welcome email sent to ${email}`);
+      } catch (emailError) {
+        console.error('Failed to send welcome email:', emailError);
+        // Don't fail the request if email fails
+      }
 
       res.status(201).json({
         success: true,

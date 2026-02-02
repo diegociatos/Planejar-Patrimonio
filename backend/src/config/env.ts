@@ -45,6 +45,15 @@ export const env = {
   // Google AI
   googleAiApiKey: process.env.GOOGLE_AI_API_KEY || '',
 
+  // SMTP Email
+  smtpHost: process.env.SMTP_HOST || 'smtp.hostinger.com',
+  smtpPort: parseInt(process.env.SMTP_PORT || '465', 10),
+  smtpSecure: process.env.SMTP_SECURE === 'true',
+  smtpUser: process.env.SMTP_USER || '',
+  smtpPass: process.env.SMTP_PASS || '',
+  smtpFrom: process.env.SMTP_FROM || '',
+  smtpFromName: process.env.SMTP_FROM_NAME || 'Planejar Patrimonio',
+
   // Helpers
   isDevelopment: process.env.NODE_ENV === 'development',
   isProduction: process.env.NODE_ENV === 'production',

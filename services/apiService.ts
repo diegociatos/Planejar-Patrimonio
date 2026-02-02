@@ -48,7 +48,7 @@ const request = async <T>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Erro de conexão' }));
-    throw new Error(error.message || `HTTP Error ${response.status}`);
+    throw new Error(error.error || error.message || `HTTP Error ${response.status}`);
   }
 
   // Handle empty responses (204 No Content)
@@ -56,7 +56,14 @@ const request = async <T>(
     return {} as T;
   }
 
-  return response.json();
+  const json = await response.json();
+  
+  // API returns { success: true, data: {...} }, extract data
+  if (json.success && json.data !== undefined) {
+    return json.data as T;
+  }
+  
+  return json as T;
 };
 
 // Auth API
@@ -96,25 +103,29 @@ export const authApi = {
 // Users API
 export const usersApi = {
   getAll: async () => {
-    return request<{ users: any[] }>('/users');
+    const data = await request<any[]>('/users');
+    return { users: data };
   },
 
   getById: async (id: string) => {
-    return request<{ user: any }>(`/users/${id}`);
+    const data = await request<any>(`/users/${id}`);
+    return { user: data };
   },
 
   create: async (userData: any) => {
-    return request<{ user: any }>('/users', {
+    const data = await request<any>('/users', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
+    return { user: data };
   },
 
   update: async (id: string, userData: any) => {
-    return request<{ user: any }>(`/users/${id}`, {
+    const data = await request<any>(`/users/${id}`, {
       method: 'PUT',
       body: JSON.stringify(userData),
     });
+    return { user: data };
   },
 
   delete: async (id: string) => {
@@ -134,25 +145,29 @@ export const usersApi = {
 // Projects API
 export const projectsApi = {
   getAll: async () => {
-    return request<{ projects: any[] }>('/projects');
+    const data = await request<any[]>('/projects');
+    return { projects: data };
   },
 
   getById: async (id: string) => {
-    return request<{ project: any }>(`/projects/${id}`);
+    const data = await request<any>(`/projects/${id}`);
+    return { project: data };
   },
 
   create: async (projectData: any) => {
-    return request<{ project: any }>('/projects', {
+    const data = await request<any>('/projects', {
       method: 'POST',
       body: JSON.stringify(projectData),
     });
+    return { project: data };
   },
 
   update: async (id: string, projectData: any) => {
-    return request<{ project: any }>(`/projects/${id}`, {
+    const data = await request<any>(`/projects/${id}`, {
       method: 'PUT',
       body: JSON.stringify(projectData),
     });
+    return { project: data };
   },
 
   delete: async (id: string) => {
