@@ -469,74 +469,33 @@ const useStore = () => {
             }
         },
         handleCreateClient: async (projectName: string, mainClientData: NewClientData, additionalClientsData: NewClientData[], _contractFile: File) => {
-            const allNewClientsData = [mainClientData, ...additionalClientsData];
-            const newUsers: User[] = [];
-            
-            // Try to create users via API first
+            // Try to create project with clients via API
             try {
-                for (const clientData of allNewClientsData) {
-                    const { user } = await api.users.create({
-                        name: clientData.name,
-                        email: clientData.email,
-                        password: clientData.password || '123456',
-                        role: UserRole.CLIENT,
-                        client_type: clientData.clientType,
-                        requires_password_change: true,
-                    });
-                    
-                    newUsers.push({
-                        id: user.id.toString(),
-                        name: user.name,
-                        email: user.email,
-                        password: clientData.password,
-                        role: UserRole.CLIENT,
-                        clientType: clientData.clientType,
-                        requiresPasswordChange: true,
-                    });
-                }
-                
-                // Create project via API
+                // Create project via API - backend will create users automatically
                 const { project } = await api.projects.create({
                     name: projectName,
-                    consultant_id: currentUser!.id,
-                    client_ids: newUsers.map(u => u.id),
+                    mainClient: {
+                        name: mainClientData.name,
+                        email: mainClientData.email,
+                        password: mainClientData.password || '123456',
+                        clientType: mainClientData.clientType,
+                    },
+                    additionalClients: additionalClientsData.map(c => ({
+                        name: c.name,
+                        email: c.email,
+                        password: c.password || '123456',
+                        clientType: c.clientType,
+                    })),
                 });
                 
                 // Reload data from API
                 await loadData();
                 
                 actions.addLogEntry(project.id.toString(), currentUser!.id, 'criou o projeto.');
+                setCurrentView('dashboard');
             } catch (err) {
-                console.error('Failed to create client/project on API, using local fallback:', err);
-                
-                // Fallback to local creation
-                const localUsers: User[] = allNewClientsData.map(clientData => ({
-                    id: `user-${Date.now()}-${Math.random()}`,
-                    name: clientData.name,
-                    email: clientData.email,
-                    password: clientData.password,
-                    role: UserRole.CLIENT,
-                    clientType: clientData.clientType,
-                    requiresPasswordChange: true,
-                }));
-                
-                setAllUsers(prev => [...prev, ...localUsers]);
-                
-                const newProject: Project = {
-                    id: `proj-${Date.now()}`,
-                    name: projectName,
-                    status: 'in-progress',
-                    currentPhaseId: 1,
-                    consultantId: currentUser!.id,
-                    clientIds: localUsers.map(u => u.id),
-                    phases: getInitialProjectPhases(),
-                    internalChat: [],
-                    clientChat: [],
-                    activityLog: [],
-                };
-                
-                setProjects(prev => [...prev, newProject]);
-                actions.addLogEntry(newProject.id, currentUser!.id, 'criou o projeto.');
+                console.error('Failed to create client/project on API:', err);
+                alert('Erro ao criar projeto: ' + (err instanceof Error ? err.message : 'Erro desconhecido'));
             }
             
             // Go to dashboard to see the new project
