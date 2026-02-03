@@ -69,15 +69,21 @@ const useStore = () => {
             return apiProject;
         }
         
-        const phases = apiProject.phases?.map((p: any) => ({
-            id: p.phase_number || p.id,
-            title: p.title,
-            description: p.description,
-            status: p.status,
-            tasks: p.tasks || [],
-            documents: p.documents || [],
-            ...(p.phase_data ? parsePhaseData(p.phase_number || p.id, p.phase_data) : {}),
-        })) || getInitialProjectPhases();
+        const phases = apiProject.phases?.map((p: any) => {
+            // Support both snake_case and camelCase from API
+            const phaseNumber = p.phaseNumber || p.phase_number || p.id;
+            const phaseDataRaw = p.phaseData || p.phase_data;
+            
+            return {
+                id: phaseNumber,
+                title: p.title,
+                description: p.description,
+                status: p.status,
+                tasks: p.tasks || [],
+                documents: p.documents || [],
+                ...(phaseDataRaw ? parsePhaseData(phaseNumber, phaseDataRaw) : {}),
+            };
+        }) || getInitialProjectPhases();
         
         return {
             id: apiProject.id?.toString() || apiProject.id,
