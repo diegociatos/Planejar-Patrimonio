@@ -119,9 +119,8 @@ const useStore = () => {
             setProjects(projectsRes.projects.map(transformProject));
         } catch (err) {
             console.error('Failed to load data from API:', err);
-            // Fallback to initial data for development
-            setAllUsers(INITIAL_USERS);
-            setProjects(INITIAL_PROJECTS);
+            // Don't use fallback data - keep empty arrays if API fails
+            // This ensures we only show real data from the database
         }
     };
 
@@ -204,29 +203,14 @@ const useStore = () => {
                 setCurrentUser(transformedUser);
                 await loadData();
             } catch (apiError: any) {
-                // If API fails, try local fallback for development
-                const localUser = allUsers.find(u => 
-                    u.email.toLowerCase() === email.toLowerCase() && u.password === password
-                ) || INITIAL_USERS.find(u => 
-                    u.email.toLowerCase() === email.toLowerCase() && u.password === password
-                );
-
-                if (!localUser) {
-                    throw new Error('AUTH_INVALID_CREDENTIALS');
+                // Re-throw password change required error
+                if (apiError.message === 'PASSWORD_CHANGE_REQUIRED') {
+                    throw apiError;
                 }
                 
-                if (localUser.requiresPasswordChange) {
-                    const err = new Error('PASSWORD_CHANGE_REQUIRED');
-                    (err as any).user = localUser;
-                    throw err;
-                }
-
-                setCurrentUser(localUser);
-                // Load fallback data
-                if (allUsers.length === 0) {
-                    setAllUsers(INITIAL_USERS);
-                    setProjects(INITIAL_PROJECTS);
-                }
+                // API login failed - throw error (no local fallback)
+                console.error('Login failed:', apiError);
+                throw new Error('AUTH_INVALID_CREDENTIALS');
             }
         },
         handleForgotPassword: async (email: string) => {
