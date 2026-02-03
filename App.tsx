@@ -341,12 +341,31 @@ const useStore = () => {
 
             // Sync with API
             try {
+                // Update project basic info
                 await api.projects.update(projectId, {
                     name: data.name,
                     status: data.status,
                     current_phase_id: data.currentPhaseId,
                     client_ids: data.clientIds,
                 });
+                
+                // If phases were updated, sync each phase with API
+                if (data.phases) {
+                    for (const phase of data.phases) {
+                        const phaseDataKey = `phase${phase.id}Data` as keyof typeof phase;
+                        const phaseData = (phase as any)[phaseDataKey];
+                        if (phaseData) {
+                            try {
+                                await api.projects.updatePhase(projectId, phase.id, {
+                                    phase_data: phaseData,
+                                    status: phase.status,
+                                });
+                            } catch (phaseErr) {
+                                console.error(`Failed to update phase ${phase.id}:`, phaseErr);
+                            }
+                        }
+                    }
+                }
             } catch (err) {
                 console.error('Failed to update project on API:', err);
             }
