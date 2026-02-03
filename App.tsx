@@ -413,6 +413,20 @@ const useStore = () => {
                 console.error('Failed to advance phase on API:', err);
             }
         },
+        handleDeleteProject: async (projectId: string) => {
+            // Update local state immediately
+            setProjects(prev => prev.filter(p => p.id !== projectId));
+            
+            // Sync with API
+            try {
+                await api.projects.delete(projectId);
+            } catch (err) {
+                console.error('Failed to delete project on API:', err);
+                // Reload projects to restore if delete failed
+                const projectsRes = await api.projects.getAll();
+                setProjects(projectsRes.projects.map(transformProject));
+            }
+        },
         handleUpdatePhaseChat: async (projectId: string, phaseId: number, content: string) => {
             if (!currentUser) return;
             const newMessage: ChatMessage = {
@@ -661,7 +675,7 @@ const App = () => {
                             currentUser={store.currentUser}
                             onProjectClick={store.actions.handleSelectProject} 
                             onNavigateToCreate={() => store.actions.handleNavigate('create_client')}
-                            onDeleteProject={(id) => store.setProjects(p => p.filter(proj => proj.id !== id))}
+                            onDeleteProject={store.actions.handleDeleteProject}
                         />;
             }
              if (store.currentUser?.role === UserRole.AUXILIARY) {
