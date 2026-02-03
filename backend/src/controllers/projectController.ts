@@ -243,11 +243,12 @@ export class ProjectController {
   async updatePhase(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id, phaseNumber } = req.params;
-      const { status, phaseData } = req.body;
+      const { status, phaseData, phase_data } = req.body;
+      const phaseDataFinal = phaseData || phase_data;
 
       const phase = await projectService.updatePhase(id, parseInt(phaseNumber), {
         status,
-        phaseData,
+        phaseData: phaseDataFinal,
       });
 
       res.status(200).json({
