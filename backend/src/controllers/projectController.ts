@@ -38,13 +38,17 @@ export class ProjectController {
         projects = await projectService.findByClientId(userId);
       }
 
-      // Enrich with client info
+      // Enrich with client info AND phases with data
       const enrichedProjects = await Promise.all(
         projects.map(async (project) => {
-          const clientIds = await projectService.getProjectClients(project.id);
+          const [clientIds, phases] = await Promise.all([
+            projectService.getProjectClients(project.id),
+            projectService.getPhases(project.id),
+          ]);
           return {
             ...project,
             clientIds,
+            phases,
           };
         })
       );
