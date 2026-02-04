@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Phase, Phase2Data, UserRole, Project, User, NewClientData, PartnerDataForPhase2, Document as DocType, PartnerQualificationData, UserDocument } from '../types';
 import Icon from './Icon';
 import Modal from './Modal';
+import { api } from '../services/apiService';
 
 
 const PartnerDataDisplay: React.FC<{ partner: User }> = ({ partner }) => {
@@ -60,38 +61,52 @@ const ConsultantActionsPanel: React.FC<{
     phaseData: Phase2Data;
     currentUser: User;
     isReadOnly?: boolean;
-}> = ({ onUpdateData, phaseData, currentUser, isReadOnly }) => {
+    projectId: string;
+}> = ({ onUpdateData, phaseData, currentUser, isReadOnly, projectId }) => {
+    const [uploading, setUploading] = useState<'contract' | 'cnpj' | null>(null);
 
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, docType: 'contract' | 'cnpj') => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: 'contract' | 'cnpj') => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const newDoc: DocType = {
-            id: `doc-${docType}-${Date.now()}`,
-            name: file.name,
-            url: URL.createObjectURL(file),
-            type: 'pdf',
-            uploadedAt: new Date().toISOString(),
-            uploadedBy: currentUser.name,
-            phaseId: 2,
-            version: 1,
-            status: 'active',
-        };
+        setUploading(docType);
+        try {
+            // Upload file to server
+            const response = await api.documents.upload(projectId, 2, file);
+            const uploadedDoc = response.data;
 
-        const updatedDocuments = {
-            ...phaseData.documents,
-            [docType]: newDoc,
-        };
-        
-        const hasContract = !!updatedDocuments.contract;
-        const hasCnpj = !!updatedDocuments.cnpj;
-        
-        let newProcessStatus = phaseData.processStatus;
-        if (hasContract && hasCnpj) {
-            newProcessStatus = 'completed';
+            const newDoc: DocType = {
+                id: uploadedDoc.id || `doc-${docType}-${Date.now()}`,
+                name: uploadedDoc.name || file.name,
+                url: uploadedDoc.url || `/uploads/${uploadedDoc.filename}`,
+                type: 'pdf',
+                uploadedAt: new Date().toISOString(),
+                uploadedBy: currentUser.name,
+                phaseId: 2,
+                version: 1,
+                status: 'active',
+            };
+
+            const updatedDocuments = {
+                ...phaseData.documents,
+                [docType]: newDoc,
+            };
+            
+            const hasContract = !!updatedDocuments.contract;
+            const hasCnpj = !!updatedDocuments.cnpj;
+            
+            let newProcessStatus = phaseData.processStatus;
+            if (hasContract && hasCnpj) {
+                newProcessStatus = 'completed';
+            }
+
+            onUpdateData({ ...phaseData, documents: updatedDocuments, processStatus: newProcessStatus });
+        } catch (error) {
+            console.error('Erro ao fazer upload:', error);
+            alert('Erro ao fazer upload do documento. Tente novamente.');
+        } finally {
+            setUploading(null);
         }
-
-        onUpdateData({ ...phaseData, documents: updatedDocuments, processStatus: newProcessStatus });
     };
 
     return (
@@ -101,11 +116,19 @@ const ConsultantActionsPanel: React.FC<{
             <div className="space-y-4">
                 <div>
                     <label className="text-sm font-medium text-gray-700">Contrato Social Final (.pdf)</label>
-                    <input type="file" accept=".pdf" onChange={(e) => handleFileUpload(e, 'contract')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" disabled={isReadOnly} />
+                    {phaseData.documents?.contract && (
+                        <p className="text-xs text-green-600 mb-1">✓ Arquivo enviado: {phaseData.documents.contract.name}</p>
+                    )}
+                    <input type="file" accept=".pdf" onChange={(e) => handleFileUpload(e, 'contract')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" disabled={isReadOnly || uploading === 'contract'} />
+                    {uploading === 'contract' && <p className="text-xs text-blue-600 mt-1">Enviando...</p>}
                 </div>
                  <div>
                     <label className="text-sm font-medium text-gray-700">Cartão CNPJ (.pdf)</label>
-                    <input type="file" accept=".pdf" onChange={(e) => handleFileUpload(e, 'cnpj')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" disabled={isReadOnly} />
+                    {phaseData.documents?.cnpj && (
+                        <p className="text-xs text-green-600 mb-1">✓ Arquivo enviado: {phaseData.documents.cnpj.name}</p>
+                    )}
+                    <input type="file" accept=".pdf" onChange={(e) => handleFileUpload(e, 'cnpj')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" disabled={isReadOnly || uploading === 'cnpj'} />
+                    {uploading === 'cnpj' && <p className="text-xs text-blue-600 mt-1">Enviando...</p>}
                 </div>
             </div>
         </div>
@@ -256,6 +279,7 @@ export const Phase2Constitution: React.FC<Phase2ConstitutionProps> = ({ phase, p
                             phaseData={phaseData}
                             currentUser={currentUser}
                             isReadOnly={isReadOnly}
+                            projectId={project.id}
                         />
                     )}
 

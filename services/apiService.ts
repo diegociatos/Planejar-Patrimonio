@@ -283,13 +283,16 @@ export const documentsApi = {
     return request<{ documents: any[] }>(`/projects/${projectId}/documents`);
   },
 
-  upload: async (projectId: string, phaseId: number, file: File) => {
+  getByPhase: async (projectId: string, phaseNumber: number) => {
+    return request<{ documents: any[] }>(`/projects/${projectId}/phases/${phaseNumber}/documents`);
+  },
+
+  upload: async (projectId: string, phaseNumber: number, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('phaseId', phaseId.toString());
 
     const token = getStoredToken();
-    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/documents`, {
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/phases/${phaseNumber}/documents`, {
       method: 'POST',
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
