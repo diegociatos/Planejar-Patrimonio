@@ -138,7 +138,14 @@ export class ProjectService {
         [logId, projectId, data.consultantId, 'criou o projeto.']
       );
 
-      return (await this.findById(projectId))!;
+      // Fetch the created project using the same connection (before commit)
+      const [rows] = await connection.execute(
+        'SELECT * FROM projects WHERE id = ?',
+        [projectId]
+      );
+      const projectRow = (rows as any[])[0];
+      
+      return transformRow<Project>(projectRow);
     });
   }
 
