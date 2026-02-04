@@ -64,8 +64,9 @@ const useStore = () => {
 
     // Transform API project to frontend Project type  
     const transformProject = (apiProject: any): Project => {
-        // If already in frontend format, return as-is
-        if (apiProject.phases && Array.isArray(apiProject.phases) && apiProject.phases[0]?.title) {
+        // If already in frontend format (phase.id is numeric), return as-is
+        if (apiProject.phases && Array.isArray(apiProject.phases) && 
+            apiProject.phases[0]?.title && typeof apiProject.phases[0]?.id === 'number') {
             return apiProject;
         }
         
