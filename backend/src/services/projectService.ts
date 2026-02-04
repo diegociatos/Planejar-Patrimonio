@@ -239,6 +239,22 @@ export class ProjectService {
   }
 
   /**
+   * Safely parse JSON data - handles both string and object inputs
+   */
+  private parsePhaseData(data: any): any {
+    if (!data) return null;
+    if (typeof data === 'object') return data; // Already parsed
+    if (typeof data === 'string') {
+      try {
+        return JSON.parse(data);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Get project phases
    */
   async getPhases(projectId: string): Promise<Phase[]> {
@@ -248,7 +264,7 @@ export class ProjectService {
     );
     return transformRows<Phase>(rows).map(phase => ({
       ...phase,
-      phaseData: phase.phaseData ? JSON.parse(phase.phaseData as any) : null,
+      phaseData: this.parsePhaseData(phase.phaseData),
     }));
   }
 
@@ -265,7 +281,7 @@ export class ProjectService {
     const phase = transformRow<Phase>(row);
     return {
       ...phase,
-      phaseData: phase.phaseData ? JSON.parse(phase.phaseData as any) : null,
+      phaseData: this.parsePhaseData(phase.phaseData),
     };
   }
 
