@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Project, UserRole, Notification, Task, ChatMessage, NewClientData, PartnerDataForPhase2, Document, ITBIProcessData, Phase6RegistrationData, RegistrationProcessData, Phase5ITBIData, UserDocument, UserDocumentCategory, LogEntry, Asset } from './types';
 import { INITIAL_USERS, INITIAL_PROJECTS, getInitialProjectPhases } from './constants';
-import { api, getStoredUser, getStoredToken } from './services/apiService';
+import { api, getStoredUser, getStoredToken, documentsApi } from './services/apiService';
 
 // Component Imports
 import LoginScreen from './components/LoginScreen';
@@ -708,7 +708,17 @@ const App = () => {
                     onAdvancePhase={store.actions.handleAdvancePhase}
                     onUpdatePhaseChat={store.actions.handleUpdatePhaseChat}
                     initialPhaseId={store.targetPhaseId}
-                    onUploadAndLinkDocument={() => {}}
+                    onUploadAndLinkDocument={async (projectId, phaseId, file, onLink) => {
+                        try {
+                            const result = await documentsApi.upload(projectId, phaseId, file);
+                            if (result.data?.id) {
+                                onLink(result.data.id);
+                            }
+                        } catch (error) {
+                            console.error('Erro ao fazer upload do documento:', error);
+                            alert('Erro ao fazer upload do arquivo. Tente novamente.');
+                        }
+                    }}
                     onChoosePostCompletionPath={() => {}}
                     onRemoveMemberFromProject={(pid, mid) => {
                         const updatedClientIds = store.selectedProject!.clientIds.filter(id => id !== mid);
