@@ -60,6 +60,7 @@ const getStatusChip = (status: ITBIProcessData['status']) => {
 
 const Phase5ITBI: React.FC<Phase5ITBIProps> = ({ phase, project, properties, userRole, canEdit, onUpdateData, onOpenChatWithQuestion, onUploadAndLinkDocument, isReadOnly }) => {
     const phaseData = phase.phase5Data || { itbiProcesses: [] };
+    const [uploadingProperty, setUploadingProperty] = useState<string | null>(null);
     
     // Initialize or sync processes from properties listed in phase 3
     const itbiProcesses = useMemo(() => {
@@ -82,6 +83,7 @@ const Phase5ITBI: React.FC<Phase5ITBIProps> = ({ phase, project, properties, use
     };
 
     const handleFileUpload = (propertyId: string, file: File, docType: 'guide' | 'receipt') => {
+        setUploadingProperty(propertyId);
         onUploadAndLinkDocument(project.id, phase.id, file, (docId) => {
             const update: Partial<ITBIProcessData> = {};
             if (docType === 'guide') {
@@ -92,6 +94,7 @@ const Phase5ITBI: React.FC<Phase5ITBIProps> = ({ phase, project, properties, use
                 update.status = 'completed';
             }
             handleUpdateProcess(propertyId, update);
+            setUploadingProperty(null);
         });
     };
 
@@ -128,13 +131,16 @@ const Phase5ITBI: React.FC<Phase5ITBIProps> = ({ phase, project, properties, use
 
                                     {canEdit ? (
                                         <div className="mt-4 pt-4 border-t space-y-3">
-                                            {process.status === 'pending_guide' && (
+                                            {uploadingProperty === property.id && (
+                                                <div className="flex items-center text-sm text-brand-secondary"><svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Enviando arquivo...</div>
+                                            )}
+                                            {process.status === 'pending_guide' && !uploadingProperty && (
                                                  <div>
                                                     <label className="text-sm font-medium">Anexar Guia de ITBI</label>
                                                     <input type="file" onChange={(e) => e.target.files && handleFileUpload(property.id, e.target.files[0], 'guide')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" disabled={isReadOnly}/>
                                                 </div>
                                             )}
-                                            {process.status === 'pending_payment' && (
+                                            {process.status === 'pending_payment' && !uploadingProperty && (
                                                  <div>
                                                     <label className="text-sm font-medium">Anexar Comprovante de Pagamento do ITBI</label>
                                                     <input type="file" onChange={(e) => e.target.files && handleFileUpload(property.id, e.target.files[0], 'receipt')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" disabled={isReadOnly}/>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Phase, Project, UserRole, Phase7ConclusionData, Document } from '../types';
 import Icon from './Icon';
 import { documentsApi } from '../services/apiService';
@@ -37,6 +37,7 @@ const Phase7Conclusion: React.FC<Phase7ConclusionProps> = ({ phase, project, use
     const phaseData = phase.phase7Data || { status: 'pending' };
     const [uploadedDocs, setUploadedDocs] = useState<Document[]>(phaseData.additionalDocuments || []);
     const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleAdditionalFileUpload = (file: File) => {
         setIsUploading(true);
@@ -201,10 +202,20 @@ const Phase7Conclusion: React.FC<Phase7ConclusionProps> = ({ phase, project, use
                         </div>
                          <div>
                             <label className="text-sm font-medium text-gray-700">Documentos Finais Adicionais (Opcional)</label>
-                            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                            <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => e.target.files && handleAdditionalFileUpload(e.target.files[0])} disabled={isUploading} />
+                            <div onClick={() => !isUploading && fileInputRef.current?.click()} className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md cursor-pointer hover:border-brand-secondary hover:bg-gray-50 transition-colors">
                                 <div className="space-y-1 text-center">
-                                    <Icon name="folder" className="mx-auto h-12 w-12 text-gray-400" />
-                                    <div className="flex text-sm text-gray-600"><label htmlFor="file-upload-final" className="relative cursor-pointer bg-white rounded-md font-medium text-brand-secondary hover:text-brand-primary"><span>{isUploading ? 'Enviando...' : 'Clique para enviar'}</span><input id="file-upload-final" name="file-upload-final" type="file" className="sr-only" disabled={isUploading} onChange={(e) => e.target.files && handleAdditionalFileUpload(e.target.files[0])} /></label><p className="pl-1">ou arraste e solte</p></div>
+                                    {isUploading ? (
+                                        <>
+                                            <svg className="animate-spin mx-auto h-12 w-12 text-brand-secondary" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                            <p className="text-sm text-brand-secondary font-medium">Enviando arquivo...</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Icon name="folder" className="mx-auto h-12 w-12 text-gray-400" />
+                                            <p className="text-sm text-gray-600"><span className="font-medium text-brand-secondary">Clique para enviar</span> ou arraste e solte</p>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                             {uploadedDocs.length > 0 && (

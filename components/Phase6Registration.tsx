@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Phase, Phase6RegistrationData, PropertyAsset, RegistrationProcessData, UserRole, Project, Document } from '../types';
 import Icon from './Icon';
 import { documentsApi } from '../services/apiService';
@@ -62,6 +62,8 @@ const getStatusChip = (status: RegistrationProcessData['status']) => {
 const Phase6Registration: React.FC<Phase6RegistrationProps> = ({ phase, project, properties, userRole, canEdit, onUpdateData, onOpenChatWithQuestion, onUploadAndLinkDocument, isReadOnly }) => {
     
     const phaseData = phase.phase6Data || { registrationProcesses: [] };
+    const [uploadingProperty, setUploadingProperty] = useState<string | null>(null);
+    const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
 
     const registrationProcesses = useMemo(() => {
         return properties.map((prop): RegistrationProcessData => {
@@ -82,6 +84,8 @@ const Phase6Registration: React.FC<Phase6RegistrationProps> = ({ phase, project,
     };
 
     const handleFileUpload = (propertyId: string, file: File, docType: 'fee_guide' | 'fee_receipt' | 'updated_certificate') => {
+        setUploadingProperty(propertyId);
+        setUploadSuccess(null);
         onUploadAndLinkDocument(project.id, phase.id, file, (docId) => {
             const update: Partial<RegistrationProcessData> = {};
             if (docType === 'fee_guide') {
@@ -95,6 +99,9 @@ const Phase6Registration: React.FC<Phase6RegistrationProps> = ({ phase, project,
                 update.status = 'completed';
             }
             handleUpdateProcess(propertyId, update);
+            setUploadingProperty(null);
+            setUploadSuccess(propertyId);
+            setTimeout(() => setUploadSuccess(null), 3000);
         });
     };
     
@@ -133,19 +140,25 @@ const Phase6Registration: React.FC<Phase6RegistrationProps> = ({ phase, project,
                                     <div className="mt-4 pt-4 border-t">
                                         {canEdit ? (
                                             <div className="space-y-3">
-                                                {process.status === 'pending_fee_guide' && (
+                                                {uploadingProperty === property.id && (
+                                                    <div className="flex items-center text-sm text-brand-secondary"><svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Enviando arquivo...</div>
+                                                )}
+                                                {uploadSuccess === property.id && (
+                                                    <div className="flex items-center text-sm text-green-600 font-medium"><Icon name="check" className="w-4 h-4 mr-1"/>Arquivo enviado com sucesso!</div>
+                                                )}
+                                                {process.status === 'pending_fee_guide' && uploadingProperty !== property.id && (
                                                     <div>
                                                         <label className="text-sm font-medium">Anexar Guia de Custas Cartorárias</label>
                                                         <input type="file" onChange={e => e.target.files && handleFileUpload(property.id, e.target.files[0], 'fee_guide')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" disabled={isReadOnly}/>
                                                     </div>
                                                 )}
-                                                {process.status === 'pending_fee_payment' && (
+                                                {process.status === 'pending_fee_payment' && uploadingProperty !== property.id && (
                                                     <div>
                                                         <label className="text-sm font-medium">Anexar Comprovante de Pagamento do Cartório</label>
                                                         <input type="file" onChange={e => e.target.files && handleFileUpload(property.id, e.target.files[0], 'fee_receipt')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-yellow-50 file:text-yellow-700 hover:file:bg-yellow-100" disabled={isReadOnly}/>
                                                     </div>
                                                 )}
-                                                {process.status === 'pending_registration' && (
+                                                {process.status === 'pending_registration' && uploadingProperty !== property.id && (
                                                     <div>
                                                         <label className="text-sm font-medium">Anexar Certidão Atualizada Integralizada</label>
                                                         <input type="file" onChange={e => e.target.files && handleFileUpload(property.id, e.target.files[0], 'updated_certificate')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" disabled={isReadOnly}/>
