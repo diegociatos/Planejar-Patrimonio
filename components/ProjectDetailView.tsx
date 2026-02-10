@@ -206,7 +206,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
             case 6:
                 return <Phase6Registration phase={selectedPhase} project={project} properties={properties} userRole={currentUser.role} canEdit={canEdit} onUpdateData={(data, proc) => onUpdateProject(project.id, { phases: project.phases.map(p => p.id === 6 ? { ...p, phase6Data: { ...p.phase6Data, ...data }} : p) }, undefined, proc)} onOpenChatWithQuestion={handleOpenChatWithQuestion} onUploadAndLinkDocument={onUploadAndLinkDocument} isReadOnly={isReadOnly} />;
             case 7:
-                return <Phase7Conclusion phase={selectedPhase} project={project} userRole={currentUser.role} canEdit={canEdit} onBackToDashboard={onBack} onUpdateData={(data) => handlePhaseDataUpdate('phase7Data', data)} onOpenChatWithQuestion={handleOpenChatWithQuestion} isReadOnly={isReadOnly} />;
+                return <Phase7Conclusion phase={selectedPhase} project={project} userRole={currentUser.role} canEdit={canEdit} onBackToDashboard={onBack} onUpdateData={(data) => handlePhaseDataUpdate('phase7Data', data)} onOpenChatWithQuestion={handleOpenChatWithQuestion} onUploadAndLinkDocument={onUploadAndLinkDocument} isReadOnly={isReadOnly} />;
             case 8:
                  return <Phase8Quotas phase={selectedPhase} project={project} currentUser={currentUser} users={users} partners={partners} canEdit={canEdit} onUpdateData={(data) => handlePhaseDataUpdate('phase8Data', data)} isReadOnly={isReadOnly} />;
             case 9:

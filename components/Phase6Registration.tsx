@@ -139,9 +139,15 @@ const Phase6Registration: React.FC<Phase6RegistrationProps> = ({ phase, project,
                                                         <input type="file" onChange={e => e.target.files && handleFileUpload(property.id, e.target.files[0], 'fee_guide')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" disabled={isReadOnly}/>
                                                     </div>
                                                 )}
+                                                {process.status === 'pending_fee_payment' && (
+                                                    <div>
+                                                        <label className="text-sm font-medium">Anexar Comprovante de Pagamento do Cartório</label>
+                                                        <input type="file" onChange={e => e.target.files && handleFileUpload(property.id, e.target.files[0], 'fee_receipt')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-yellow-50 file:text-yellow-700 hover:file:bg-yellow-100" disabled={isReadOnly}/>
+                                                    </div>
+                                                )}
                                                 {process.status === 'pending_registration' && (
                                                     <div>
-                                                        <label className="text-sm font-medium">Anexar Certidão Atualizada</label>
+                                                        <label className="text-sm font-medium">Anexar Certidão Atualizada Integralizada</label>
                                                         <input type="file" onChange={e => e.target.files && handleFileUpload(property.id, e.target.files[0], 'updated_certificate')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" disabled={isReadOnly}/>
                                                     </div>
                                                 )}

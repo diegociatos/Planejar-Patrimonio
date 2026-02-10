@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Phase, Project, UserRole, Phase7ConclusionData } from '../types';
+import { Phase, Project, UserRole, Phase7ConclusionData, Document } from '../types';
 import Icon from './Icon';
+import { documentsApi } from '../services/apiService';
 
 interface Phase7ConclusionProps {
   phase: Phase;
@@ -10,6 +11,7 @@ interface Phase7ConclusionProps {
   onBackToDashboard: () => void;
   onUpdateData: (data: Partial<Phase7ConclusionData>) => void;
   onOpenChatWithQuestion: (question: string) => void;
+  onUploadAndLinkDocument: (projectId: string, phaseId: number, file: File, onLink: (docId: string) => void) => void;
   isReadOnly?: boolean;
 }
 
@@ -31,8 +33,48 @@ const StarRating: React.FC<{ rating: number, setRating: (rating: number) => void
 );
 
 
-const Phase7Conclusion: React.FC<Phase7ConclusionProps> = ({ phase, project, userRole, canEdit, onBackToDashboard, onUpdateData, onOpenChatWithQuestion, isReadOnly }) => {
+const Phase7Conclusion: React.FC<Phase7ConclusionProps> = ({ phase, project, userRole, canEdit, onBackToDashboard, onUpdateData, onOpenChatWithQuestion, onUploadAndLinkDocument, isReadOnly }) => {
     const phaseData = phase.phase7Data || { status: 'pending' };
+    const [uploadedDocs, setUploadedDocs] = useState<Document[]>(phaseData.additionalDocuments || []);
+    const [isUploading, setIsUploading] = useState(false);
+
+    const handleAdditionalFileUpload = (file: File) => {
+        setIsUploading(true);
+        onUploadAndLinkDocument(project.id, phase.id, file, (docId) => {
+            const newDoc: Document = {
+                id: docId,
+                name: file.name,
+                url: '',
+                type: file.name.endsWith('.pdf') ? 'pdf' : 'other',
+                uploadedAt: new Date().toISOString(),
+                uploadedBy: '',
+                phaseId: phase.id,
+                version: 1,
+                status: 'active',
+            };
+            const updatedDocs = [...uploadedDocs, newDoc];
+            setUploadedDocs(updatedDocs);
+            onUpdateData({ additionalDocuments: updatedDocs });
+            setIsUploading(false);
+        });
+    };
+
+    const handleDownloadDoc = async (docId: string, docName: string) => {
+        try {
+            const blob = await documentsApi.download(docId);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = docName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Erro ao baixar documento:', err);
+            alert('Erro ao baixar documento.');
+        }
+    };
     const [consultantObservations, setConsultantObservations] = useState(phaseData.consultantObservations || '');
     const [feedbackRating, setFeedbackRating] = useState(phaseData.feedback?.rating || 0);
     const [feedbackComment, setFeedbackComment] = useState(phaseData.feedback?.comment || '');
@@ -162,9 +204,19 @@ const Phase7Conclusion: React.FC<Phase7ConclusionProps> = ({ phase, project, use
                             <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
                                 <div className="space-y-1 text-center">
                                     <Icon name="folder" className="mx-auto h-12 w-12 text-gray-400" />
-                                    <div className="flex text-sm text-gray-600"><label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-brand-secondary hover:text-brand-primary"><span>Clique para enviar</span><input id="file-upload" name="file-upload" type="file" className="sr-only" /></label><p className="pl-1">ou arraste e solte</p></div>
+                                    <div className="flex text-sm text-gray-600"><label htmlFor="file-upload-final" className="relative cursor-pointer bg-white rounded-md font-medium text-brand-secondary hover:text-brand-primary"><span>{isUploading ? 'Enviando...' : 'Clique para enviar'}</span><input id="file-upload-final" name="file-upload-final" type="file" className="sr-only" disabled={isUploading} onChange={(e) => e.target.files && handleAdditionalFileUpload(e.target.files[0])} /></label><p className="pl-1">ou arraste e solte</p></div>
                                 </div>
                             </div>
+                            {uploadedDocs.length > 0 && (
+                                <ul className="mt-3 space-y-1">
+                                    {uploadedDocs.map(doc => (
+                                        <li key={doc.id} className="flex items-center text-sm text-gray-700">
+                                            <Icon name="file-pdf" className="w-4 h-4 mr-2 text-brand-secondary" />
+                                            <button onClick={() => handleDownloadDoc(doc.id, doc.name)} className="text-blue-600 hover:underline">{doc.name}</button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
                         <div className="p-4 bg-yellow-50 text-yellow-800 border-l-4 border-yellow-400">
                             <h4 className="font-bold">Atenção</h4>

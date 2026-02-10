@@ -127,15 +127,21 @@ const Phase5ITBI: React.FC<Phase5ITBIProps> = ({ phase, project, properties, use
                                     </div>
 
                                     {canEdit ? (
-                                        <div className="mt-4 pt-4 border-t">
+                                        <div className="mt-4 pt-4 border-t space-y-3">
                                             {process.status === 'pending_guide' && (
                                                  <div>
                                                     <label className="text-sm font-medium">Anexar Guia de ITBI</label>
                                                     <input type="file" onChange={(e) => e.target.files && handleFileUpload(property.id, e.target.files[0], 'guide')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" disabled={isReadOnly}/>
                                                 </div>
                                             )}
+                                            {process.status === 'pending_payment' && (
+                                                 <div>
+                                                    <label className="text-sm font-medium">Anexar Comprovante de Pagamento do ITBI</label>
+                                                    <input type="file" onChange={(e) => e.target.files && handleFileUpload(property.id, e.target.files[0], 'receipt')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" disabled={isReadOnly}/>
+                                                </div>
+                                            )}
                                             {guideDoc && <p className="text-sm">Guia: <button onClick={() => handleDownloadDoc(guideDoc.id, guideDoc.name)} className="text-blue-600 hover:underline">{guideDoc.name}</button></p>}
-                                            {receiptDoc && <p className="text-sm">Recibo: <button onClick={() => handleDownloadDoc(receiptDoc.id, receiptDoc.name)} className="text-blue-600 hover:underline">{receiptDoc.name}</button></p>}
+                                            {receiptDoc && <p className="text-sm">Comprovante: <button onClick={() => handleDownloadDoc(receiptDoc.id, receiptDoc.name)} className="text-blue-600 hover:underline">{receiptDoc.name}</button></p>}
                                         </div>
                                     ) : (
                                         <div className="mt-4 pt-4 border-t">
