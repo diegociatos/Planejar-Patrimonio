@@ -1,6 +1,25 @@
 import React, { useState, useMemo } from 'react';
 import { Project, Document, Phase, User } from '../types';
 import Icon from './Icon';
+import { documentsApi } from '../services/apiService';
+
+// Helper to download document via API (sends auth token)
+const handleDownloadDocument = async (docId: string, docName: string) => {
+  try {
+    const blob = await documentsApi.download(docId);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = docName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Erro ao baixar documento:', err);
+    alert('Erro ao baixar documento. Tente novamente.');
+  }
+};
 
 interface UploadModalProps {
   phases: Phase[];
@@ -188,9 +207,9 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({ project, users, onBack, o
                       {new Date(doc.uploadedAt).toLocaleDateString('pt-BR')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <a href={doc.url} download={doc.name} className="text-brand-secondary hover:text-brand-primary">
+                      <button onClick={() => handleDownloadDocument(doc.id, doc.name)} className="text-brand-secondary hover:text-brand-primary">
                         Baixar
-                      </a>
+                      </button>
                     </td>
                   </tr>
                 ))}

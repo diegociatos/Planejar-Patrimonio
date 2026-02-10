@@ -69,10 +69,18 @@ const request = async <T>(
 // Auth API
 export const authApi = {
   login: async (email: string, password: string) => {
-    const data = await request<{ user: any; token: string }>('/auth/login', {
+    const data = await request<any>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
+    
+    // Check if password change is required (backend returns no token/user in this case)
+    if (data.requiresPasswordChange) {
+      const err = new Error('PASSWORD_CHANGE_REQUIRED') as any;
+      err.userId = data.userId;
+      throw err;
+    }
+    
     setStoredAuth(data.token, data.user);
     return data;
   },
@@ -86,6 +94,19 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     });
+  },
+
+  /**
+   * Change password for first login (no auth required)
+   * Backend returns token + user after successful change
+   */
+  changeFirstPassword: async (userId: string, newPassword: string) => {
+    const data = await request<{ user: any; token: string; message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ userId, newPassword }),
+    });
+    setStoredAuth(data.token, data.user);
+    return data;
   },
 
   forgotPassword: async (email: string) => {
@@ -224,10 +245,11 @@ export const projectsApi = {
   },
 
   // Members
-  addMember: async (projectId: string, userId: string) => {
+  addMember: async (projectId: string, userId?: string, newClientData?: { name: string; email: string; password?: string; clientType: string }) => {
+    const body = userId ? { userId } : newClientData;
     return request<{ project: any }>(`/projects/${projectId}/clients`, {
       method: 'POST',
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify(body),
     });
   },
 

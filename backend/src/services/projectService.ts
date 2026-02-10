@@ -330,8 +330,10 @@ export class ProjectService {
       throw new NotFoundError('Projeto não encontrado');
     }
 
+    console.log(`[advancePhase] projectId: ${projectId}, currentPhaseNumber recebido: ${currentPhaseNumber}, project.currentPhaseId no banco: ${project.currentPhaseId}`);
+
     if (project.currentPhaseId !== currentPhaseNumber) {
-      throw new ForbiddenError('Só é possível avançar a fase atual');
+      throw new ForbiddenError(`Só é possível avançar a fase atual. Recebido: ${currentPhaseNumber}, Atual no banco: ${project.currentPhaseId}`);
     }
 
     const nextPhaseNumber = currentPhaseNumber + 1;

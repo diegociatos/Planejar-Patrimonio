@@ -8,7 +8,7 @@ import { userService } from '../services/userService.js';
 import { taskService } from '../services/taskService.js';
 import { documentService } from '../services/documentService.js';
 import { chatService } from '../services/chatService.js';
-import { NotFoundError, ForbiddenError } from '../utils/errors.js';
+import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors.js';
 import { UserRole } from '../types/index.js';
 import { omit, generateRandomPassword } from '../utils/helpers.js';
 
@@ -38,17 +38,26 @@ export class ProjectController {
         projects = await projectService.findByClientId(userId);
       }
 
-      // Enrich with client info AND phases with data
+      // Enrich with client info AND phases with data and documents
       const enrichedProjects = await Promise.all(
         projects.map(async (project) => {
           const [clientIds, phases] = await Promise.all([
             projectService.getProjectClients(project.id),
             projectService.getPhases(project.id),
           ]);
+          
+          // Enrich phases with documents
+          const phasesWithDocs = await Promise.all(
+            phases.map(async (phase) => {
+              const documents = await documentService.findByPhase(project.id, phase.id);
+              return { ...phase, documents };
+            })
+          );
+          
           return {
             ...project,
             clientIds,
-            phases,
+            phases: phasesWithDocs,
           };
         })
       );
@@ -228,7 +237,13 @@ export class ProjectController {
       const { phaseNumber } = req.body;
       const userId = req.user!.userId;
 
-      const project = await projectService.advancePhase(id, phaseNumber, userId);
+      // Garantir que phaseNumber seja número inteiro
+      const phaseNum = parseInt(phaseNumber, 10);
+      if (isNaN(phaseNum)) {
+        throw new BadRequestError('phaseNumber deve ser um número válido');
+      }
+
+      const project = await projectService.advancePhase(id, phaseNum, userId);
 
       res.status(200).json({
         success: true,

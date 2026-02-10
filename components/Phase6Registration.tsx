@@ -1,6 +1,25 @@
 import React, { useState, useMemo } from 'react';
 import { Phase, Phase6RegistrationData, PropertyAsset, RegistrationProcessData, UserRole, Project, Document } from '../types';
 import Icon from './Icon';
+import { documentsApi } from '../services/apiService';
+
+// Helper to download document via API (sends auth token)
+const handleDownloadDoc = async (docId: string, docName: string) => {
+  try {
+    const blob = await documentsApi.download(docId);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = docName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Erro ao baixar documento:', err);
+    alert('Erro ao baixar documento.');
+  }
+};
 
 interface Phase6RegistrationProps {
   phase: Phase;
@@ -126,18 +145,18 @@ const Phase6Registration: React.FC<Phase6RegistrationProps> = ({ phase, project,
                                                         <input type="file" onChange={e => e.target.files && handleFileUpload(property.id, e.target.files[0], 'updated_certificate')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" disabled={isReadOnly}/>
                                                     </div>
                                                 )}
-                                                {feeGuideDoc && <p className="text-sm">Guia: <a href={feeGuideDoc.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{feeGuideDoc.name}</a></p>}
-                                                {feeReceiptDoc && <p className="text-sm">Recibo: <a href={feeReceiptDoc.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{feeReceiptDoc.name}</a></p>}
-                                                {finalCertDoc && <p className="text-sm">Certidão Final: <a href={finalCertDoc.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{finalCertDoc.name}</a></p>}
+                                                {feeGuideDoc && <p className="text-sm">Guia: <button onClick={() => handleDownloadDoc(feeGuideDoc.id, feeGuideDoc.name)} className="text-blue-600 hover:underline">{feeGuideDoc.name}</button></p>}
+                                                {feeReceiptDoc && <p className="text-sm">Recibo: <button onClick={() => handleDownloadDoc(feeReceiptDoc.id, feeReceiptDoc.name)} className="text-blue-600 hover:underline">{feeReceiptDoc.name}</button></p>}
+                                                {finalCertDoc && <p className="text-sm">Certidão Final: <button onClick={() => handleDownloadDoc(finalCertDoc.id, finalCertDoc.name)} className="text-blue-600 hover:underline">{finalCertDoc.name}</button></p>}
                                             </div>
                                         ) : ( // Client View
                                             <div className="space-y-3">
                                                  {process.status === 'pending_fee_guide' && <p className="text-sm text-gray-500">Aguardando o consultor anexar a guia de custas.</p>}
                                                  {process.status === 'pending_fee_payment' && feeGuideDoc && (
                                                     <div className="space-y-3">
-                                                        <a href={feeGuideDoc.url} target="_blank" rel="noreferrer" className="inline-flex items-center px-4 py-2 bg-brand-secondary text-white rounded-lg font-semibold text-sm hover:bg-brand-primary">
+                                                        <button onClick={() => handleDownloadDoc(feeGuideDoc.id, feeGuideDoc.name)} className="inline-flex items-center px-4 py-2 bg-brand-secondary text-white rounded-lg font-semibold text-sm hover:bg-brand-primary">
                                                             <Icon name="file-pdf" className="w-4 h-4 mr-2"/> Baixar Guia de Custas
-                                                        </a>
+                                                        </button>
                                                         <div>
                                                             <label className="text-sm font-medium">Anexar Comprovante de Pagamento</label>
                                                             <input type="file" onChange={e => e.target.files && handleFileUpload(property.id, e.target.files[0], 'fee_receipt')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" disabled={isReadOnly}/>
@@ -145,14 +164,14 @@ const Phase6Registration: React.FC<Phase6RegistrationProps> = ({ phase, project,
                                                     </div>
                                                 )}
                                                 {process.status === 'pending_registration' && feeReceiptDoc && (
-                                                     <a href={feeReceiptDoc.url} target="_blank" rel="noreferrer" className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-800 rounded-lg font-semibold text-sm">
+                                                     <button onClick={() => handleDownloadDoc(feeReceiptDoc.id, feeReceiptDoc.name)} className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-800 rounded-lg font-semibold text-sm">
                                                         <Icon name="check" className="w-4 h-4 mr-2"/> Ver Comprovante de Custas
-                                                    </a>
+                                                    </button>
                                                 )}
                                                  {process.status === 'completed' && finalCertDoc && (
-                                                    <a href={finalCertDoc.url} target="_blank" rel="noreferrer" className="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-lg font-semibold text-sm">
+                                                    <button onClick={() => handleDownloadDoc(finalCertDoc.id, finalCertDoc.name)} className="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-lg font-semibold text-sm">
                                                         <Icon name="check" className="w-4 h-4 mr-2"/> Ver Certidão Atualizada
-                                                    </a>
+                                                    </button>
                                                 )}
                                             </div>
                                         )}

@@ -194,7 +194,11 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
             case 2:
                 return <Phase2Constitution phase={selectedPhase} project={project} currentUser={currentUser} users={users} canEdit={canEdit} onBackToDashboard={onBack} onUpdateData={(data) => handlePhaseDataUpdate('phase2Data', data)} isReadOnly={isReadOnly} onRemoveMember={(memberId) => onRemoveMemberFromProject(project.id, memberId)} availableClients={availableClients} onCreateAndAddMember={onCreateAndAddMemberToProject} onAddExistingMember={onAddExistingMemberToProject} />;
             case 3:
-                return <Phase3Integralization phase={selectedPhase} partners={partners} declaredCapital={declaredCapital} userRole={currentUser.role} currentUser={currentUser} canEdit={canEdit} onBackToDashboard={onBack} onUpdateData={(data) => handlePhaseDataUpdate('phase3Data', data)} onOpenChatWithQuestion={handleOpenChatWithQuestion} isReadOnly={isReadOnly} />;
+                return <Phase3Integralization phase={selectedPhase} partners={partners} declaredCapital={declaredCapital} userRole={currentUser.role} currentUser={currentUser} canEdit={canEdit} onBackToDashboard={onBack} onUpdateData={(data) => handlePhaseDataUpdate('phase3Data', data)} onOpenChatWithQuestion={handleOpenChatWithQuestion} isReadOnly={isReadOnly} onUploadAndLinkDocument={async (file: File) => {
+                    return new Promise((resolve) => {
+                        onUploadAndLinkDocument(project.id, 3, file, (docId) => resolve(docId));
+                    });
+                }} />;
             case 4:
                 return <Phase4Minuta phase={selectedPhase} project={project} currentUser={currentUser} users={users} canEdit={canEdit} onUpdateData={(data) => handlePhaseDataUpdate('phase4Data', data)} onUpdatePhaseChat={(content) => onUpdatePhaseChat(project.id, 4, content)} isReadOnly={isReadOnly} />;
             case 5:
@@ -214,7 +218,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, currentU
         }
     };
     
-    const canAdvancePhase = isConsultantOnly && selectedPhase.status !== 'completed' && selectedPhase.id < 7;
+    const canAdvancePhase = isConsultantOnly && selectedPhase.status !== 'completed' && selectedPhase.id <= 10;
 
 
     return (

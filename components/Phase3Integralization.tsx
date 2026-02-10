@@ -253,9 +253,10 @@ interface Phase3IntegralizationProps {
   onUpdateData: (data: Partial<Phase3Data>) => void;
   onOpenChatWithQuestion: (question: string) => void;
   isReadOnly?: boolean;
+  onUploadAndLinkDocument?: (file: File) => Promise<string | null>;
 }
 
-const Phase3Integralization: React.FC<Phase3IntegralizationProps> = ({ phase, partners, declaredCapital, userRole, currentUser, canEdit, onBackToDashboard, onUpdateData, onOpenChatWithQuestion, isReadOnly }) => {
+const Phase3Integralization: React.FC<Phase3IntegralizationProps> = ({ phase, partners, declaredCapital, userRole, currentUser, canEdit, onBackToDashboard, onUpdateData, onOpenChatWithQuestion, isReadOnly, onUploadAndLinkDocument }) => {
     const phaseData = useMemo(() => ({
         assets: [],
         documents: [],
@@ -274,25 +275,52 @@ const Phase3Integralization: React.FC<Phase3IntegralizationProps> = ({ phase, pa
     const totalMarketValue = useMemo(() => phaseData.assets.reduce((sum, p) => sum + (Number(p.marketValue) || 0), 0), [phaseData.assets]);
     const progress = declaredCapital > 0 ? (totalIntegralizedValue / declaredCapital) * 100 : 0;
     
-    const handleSaveAsset = (assetData: Omit<Asset, 'id' | 'status'>, documentFile?: File | null) => {
+    const handleSaveAsset = async (assetData: Omit<Asset, 'id' | 'status'>, documentFile?: File | null) => {
         let newDoc: DocType | null = null;
         let newDocId: string | undefined = undefined;
         const updatedDocuments = [...phaseData.documents];
 
         if (documentFile) {
-            newDoc = {
-                id: `doc-asset-${Date.now()}`,
-                name: documentFile.name,
-                url: URL.createObjectURL(documentFile),
-                type: 'pdf', // Assuming pdf for now
-                uploadedAt: new Date().toISOString(),
-                uploadedBy: currentUser.name,
-                phaseId: 3,
-                version: 1,
-                status: 'active',
-            };
-            newDocId = newDoc.id;
-            updatedDocuments.push(newDoc);
+            if (onUploadAndLinkDocument) {
+                // Upload via API - document persists in database
+                try {
+                    const docId = await onUploadAndLinkDocument(documentFile);
+                    if (docId) {
+                        newDocId = docId;
+                        newDoc = {
+                            id: docId,
+                            name: documentFile.name,
+                            url: '', // Will be fetched via API download
+                            type: 'pdf',
+                            uploadedAt: new Date().toISOString(),
+                            uploadedBy: currentUser.name,
+                            phaseId: 3,
+                            version: 1,
+                            status: 'active',
+                        };
+                        updatedDocuments.push(newDoc);
+                    }
+                } catch (err) {
+                    console.error('Erro ao fazer upload do documento:', err);
+                    alert('Erro ao fazer upload do documento. Tente novamente.');
+                    return;
+                }
+            } else {
+                // Fallback: local blob URL (will be lost on refresh)
+                newDoc = {
+                    id: `doc-asset-${Date.now()}`,
+                    name: documentFile.name,
+                    url: URL.createObjectURL(documentFile),
+                    type: 'pdf',
+                    uploadedAt: new Date().toISOString(),
+                    uploadedBy: currentUser.name,
+                    phaseId: 3,
+                    version: 1,
+                    status: 'active',
+                };
+                newDocId = newDoc.id;
+                updatedDocuments.push(newDoc);
+            }
         }
 
         const newAsset: Asset = {

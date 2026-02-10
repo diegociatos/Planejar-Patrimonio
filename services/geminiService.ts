@@ -7,9 +7,11 @@ import { fileToBase64 } from "../utils/fileUtils";
 let ai: GoogleGenAI | null = null;
 const getAi = (): GoogleGenAI => {
   if (!ai) {
-    // The API key must be obtained from the environment variable process.env.API_KEY.
-    // The polyfill in index.html ensures this object path exists, even if the key is empty initially.
-    ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('Chave da API Gemini não configurada. Defina VITE_GEMINI_API_KEY no arquivo .env');
+    }
+    ai = new GoogleGenAI({ apiKey });
   }
   return ai;
 };

@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Phase, Phase2Data, UserRole, Project, User, NewClientData, PartnerDataForPhase2, Document as DocType, PartnerQualificationData, UserDocument } from '../types';
 import Icon from './Icon';
 import Modal from './Modal';
@@ -164,11 +164,39 @@ export const Phase2Constitution: React.FC<Phase2ConstitutionProps> = ({ phase, p
             status: 'pending_client',
             processStatus: 'pending_start',
         };
-        return { ...defaultData, ...(phase.phase2Data || {}) };
-    }, [phase.phase2Data]);
+        const merged = { ...defaultData, ...(phase.phase2Data || {}) };
+        
+        // Auto-populate partners from project clientIds if partners array is empty
+        if (merged.partners.length === 0 && project.clientIds.length > 0) {
+            const clientPartners = project.clientIds
+                .map(cid => users.find(u => u.id === cid))
+                .filter((u): u is User => !!u && u.clientType === 'partner')
+                .map(u => ({
+                    userId: u.id,
+                    name: u.name,
+                    isAdministrator: false,
+                    participation: '' as const,
+                    dataStatus: 'pending' as const,
+                }));
+            if (clientPartners.length > 0) {
+                merged.partners = clientPartners;
+            }
+        }
+        
+        return merged;
+    }, [phase.phase2Data, project.clientIds, users]);
 
     const [isDataModalOpen, setIsDataModalOpen] = useState(false);
     const [selectedPartner, setSelectedPartner] = useState<User | null>(null);
+    const [hasAutoSynced, setHasAutoSynced] = useState(false);
+
+    // Auto-save partners to backend when they were auto-populated from clientIds
+    useEffect(() => {
+        if (!hasAutoSynced && phaseData.partners.length > 0 && (!phase.phase2Data?.partners || phase.phase2Data.partners.length === 0)) {
+            onUpdateData({ ...phaseData });
+            setHasAutoSynced(true);
+        }
+    }, [phaseData.partners]);
 
     const isClientView = !canEdit;
 

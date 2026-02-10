@@ -1,6 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Phase, Phase5ITBIData, PropertyAsset, ITBIProcessData, UserRole, Project, User, Document } from '../types';
 import Icon from './Icon';
+import { documentsApi } from '../services/apiService';
+
+// Helper to download document via API (sends auth token)
+const handleDownloadDoc = async (docId: string, docName: string) => {
+  try {
+    const blob = await documentsApi.download(docId);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = docName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Erro ao baixar documento:', err);
+    alert('Erro ao baixar documento.');
+  }
+};
 
 interface Phase5ITBIProps {
   phase: Phase;
@@ -115,16 +134,16 @@ const Phase5ITBI: React.FC<Phase5ITBIProps> = ({ phase, project, properties, use
                                                     <input type="file" onChange={(e) => e.target.files && handleFileUpload(property.id, e.target.files[0], 'guide')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" disabled={isReadOnly}/>
                                                 </div>
                                             )}
-                                            {guideDoc && <p className="text-sm">Guia: <a href={guideDoc.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{guideDoc.name}</a></p>}
-                                            {receiptDoc && <p className="text-sm">Recibo: <a href={receiptDoc.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{receiptDoc.name}</a></p>}
+                                            {guideDoc && <p className="text-sm">Guia: <button onClick={() => handleDownloadDoc(guideDoc.id, guideDoc.name)} className="text-blue-600 hover:underline">{guideDoc.name}</button></p>}
+                                            {receiptDoc && <p className="text-sm">Recibo: <button onClick={() => handleDownloadDoc(receiptDoc.id, receiptDoc.name)} className="text-blue-600 hover:underline">{receiptDoc.name}</button></p>}
                                         </div>
                                     ) : (
                                         <div className="mt-4 pt-4 border-t">
                                             {process.status === 'pending_payment' && guideDoc && (
                                                 <div className="space-y-3">
-                                                    <a href={guideDoc.url} target="_blank" rel="noreferrer" className="inline-flex items-center px-4 py-2 bg-brand-secondary text-white rounded-lg font-semibold text-sm hover:bg-brand-primary">
+                                                    <button onClick={() => handleDownloadDoc(guideDoc.id, guideDoc.name)} className="inline-flex items-center px-4 py-2 bg-brand-secondary text-white rounded-lg font-semibold text-sm hover:bg-brand-primary">
                                                         <Icon name="file-pdf" className="w-4 h-4 mr-2"/> Baixar Guia para Pagamento
-                                                    </a>
+                                                    </button>
                                                     <div>
                                                         <label className="text-sm font-medium">Anexar Comprovante de Pagamento</label>
                                                         <input type="file" onChange={(e) => e.target.files && handleFileUpload(property.id, e.target.files[0], 'receipt')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" disabled={isReadOnly}/>
@@ -132,9 +151,9 @@ const Phase5ITBI: React.FC<Phase5ITBIProps> = ({ phase, project, properties, use
                                                 </div>
                                             )}
                                             {process.status === 'completed' && receiptDoc && (
-                                                <a href={receiptDoc.url} target="_blank" rel="noreferrer" className="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-lg font-semibold text-sm">
+                                                <button onClick={() => handleDownloadDoc(receiptDoc.id, receiptDoc.name)} className="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-lg font-semibold text-sm">
                                                     <Icon name="check" className="w-4 h-4 mr-2"/> Ver Comprovante
-                                                </a>
+                                                </button>
                                             )}
                                              {process.status === 'pending_guide' && <p className="text-sm text-gray-500">Aguardando o consultor anexar a guia de pagamento.</p>}
                                         </div>

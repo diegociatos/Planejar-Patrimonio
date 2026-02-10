@@ -117,17 +117,39 @@ const useStore = () => {
     // Load data from API
     const loadData = async () => {
         try {
-            const [usersRes, projectsRes] = await Promise.all([
-                api.users.getAll(),
-                api.projects.getAll(),
-            ]);
-            
-            setAllUsers(usersRes.users.map(transformUser));
+            // Load projects (accessible to all authenticated users)
+            const projectsRes = await api.projects.getAll();
             setProjects(projectsRes.projects.map(transformProject));
+            
+            // Load users - may fail for CLIENT role (403 Forbidden)
+            try {
+                const usersRes = await api.users.getAll();
+                setAllUsers(usersRes.users.map(transformUser));
+            } catch (usersErr: any) {
+                console.warn('Could not load all users (restricted for client role):', usersErr.message);
+                // For clients, extract unique user IDs from projects and fetch them individually
+                const allClientIds = new Set<string>();
+                projectsRes.projects.forEach((p: any) => {
+                    const clientIds = p.client_ids || p.clientIds || [];
+                    clientIds.forEach((id: string) => allClientIds.add(id?.toString()));
+                    if (p.consultant_id || p.consultantId) {
+                        allClientIds.add((p.consultant_id || p.consultantId)?.toString());
+                    }
+                });
+                
+                const fetchedUsers: User[] = [];
+                for (const uid of allClientIds) {
+                    try {
+                        const { user } = await api.users.getById(uid);
+                        fetchedUsers.push(transformUser(user));
+                    } catch {
+                        // Skip users we can't access
+                    }
+                }
+                setAllUsers(fetchedUsers);
+            }
         } catch (err) {
             console.error('Failed to load data from API:', err);
-            // Don't use fallback data - keep empty arrays if API fails
-            // This ensures we only show real data from the database
         }
     };
 
@@ -201,18 +223,22 @@ const useStore = () => {
                 const { user } = await api.auth.login(email, password);
                 const transformedUser = transformUser(user);
                 
-                if (transformedUser.requiresPasswordChange) {
-                    const err = new Error('PASSWORD_CHANGE_REQUIRED');
-                    (err as any).user = transformedUser;
-                    throw err;
-                }
-                
                 setCurrentUser(transformedUser);
                 await loadData();
             } catch (apiError: any) {
-                // Re-throw password change required error
+                // Handle password change required (thrown from apiService)
                 if (apiError.message === 'PASSWORD_CHANGE_REQUIRED') {
-                    throw apiError;
+                    // Create a minimal user for the ChangePasswordScreen
+                    const minimalUser: User = {
+                        id: apiError.userId,
+                        name: email.split('@')[0],
+                        email: email,
+                        role: UserRole.CLIENT,
+                        requiresPasswordChange: true,
+                    };
+                    const err = new Error('PASSWORD_CHANGE_REQUIRED') as any;
+                    err.user = minimalUser;
+                    throw err;
                 }
                 
                 // API login failed - throw error (no local fallback)
@@ -262,29 +288,17 @@ const useStore = () => {
         handleCancelPasswordChange: () => setUserForPasswordChange(null),
         handlePasswordChanged: async (userId: string, newPassword: string) => {
             try {
-                // Try API first
-                const userToUpdate = allUsers.find(u => u.id === userId) || userForPasswordChange;
-                if (!userToUpdate) return;
+                // Use change-password endpoint (doesn't require auth token)
+                // Backend returns token + user after successful password change
+                const data = await api.auth.changeFirstPassword(userId, newPassword);
+                const transformedUser = transformUser(data.user);
                 
-                // For password change, we need to use the change-password endpoint
-                // But we don't have the old password here, so we'll update the user directly
-                await api.users.update(userId, { 
-                    requires_password_change: false,
-                });
-                
-                const updatedUser = { ...userToUpdate, password: newPassword, requiresPasswordChange: false };
-                setAllUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
-                setCurrentUser(updatedUser);
+                setCurrentUser(transformedUser);
                 setUserForPasswordChange(null);
-            } catch {
-                // Fallback to local update
-                const userToUpdate = allUsers.find(u => u.id === userId) || userForPasswordChange;
-                if (!userToUpdate) return;
-                
-                const updatedUser = { ...userToUpdate, password: newPassword, requiresPasswordChange: false };
-                setAllUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
-                setCurrentUser(updatedUser);
-                setUserForPasswordChange(null);
+                await loadData();
+            } catch (err) {
+                console.error('Password change failed:', err);
+                alert('Erro ao alterar senha. Tente novamente.');
             }
         },
         handleNavigate: (view: string) => {
@@ -612,7 +626,8 @@ const useStore = () => {
         actions, setCurrentUser, setUserForPasswordChange, setCurrentView,
         setSelectedProjectId, setNotifications, setActiveChat, setTargetPhaseId,
         setIsAiChatOpen, setAiChatMessages, setAiChatSession, setIsAiLoading,
-        isPartnerDataComplete, setProjects, setAllUsers, setIsSidebarOpen
+        isPartnerDataComplete, setProjects, setAllUsers, setIsSidebarOpen,
+        transformUser, transformProject, loadData,
     };
 };
 
@@ -711,8 +726,33 @@ const App = () => {
                     onUploadAndLinkDocument={async (projectId, phaseId, file, onLink) => {
                         try {
                             const result = await documentsApi.upload(projectId, phaseId, file);
-                            if (result.data?.id) {
-                                onLink(result.data.id);
+                            const docId = result.data?.id || result.id;
+                            if (docId) {
+                                // Add the uploaded document to the local phase documents array
+                                const newDoc = result.data || result;
+                                store.setProjects(prev => prev.map(p => {
+                                    if (p.id === projectId) {
+                                        const updatedPhases = p.phases.map(ph => {
+                                            if (ph.id === phaseId) {
+                                                return { ...ph, documents: [...(ph.documents || []), {
+                                                    id: docId,
+                                                    name: newDoc.name || file.name,
+                                                    url: newDoc.url || '',
+                                                    type: file.name.split('.').pop() || 'pdf',
+                                                    uploadedAt: new Date().toISOString(),
+                                                    uploadedBy: store.currentUser?.name || '',
+                                                    phaseId,
+                                                    version: 1,
+                                                    status: 'active',
+                                                }]};
+                                            }
+                                            return ph;
+                                        });
+                                        return { ...p, phases: updatedPhases };
+                                    }
+                                    return p;
+                                }));
+                                onLink(docId);
                             }
                         } catch (error) {
                             console.error('Erro ao fazer upload do documento:', error);
@@ -720,33 +760,49 @@ const App = () => {
                         }
                     }}
                     onChoosePostCompletionPath={() => {}}
-                    onRemoveMemberFromProject={(pid, mid) => {
-                        const updatedClientIds = store.selectedProject!.clientIds.filter(id => id !== mid);
-                        store.actions.handleUpdateProject(pid, { clientIds: updatedClientIds });
-                        store.actions.addLogEntry(pid, store.currentUser!.id, `removeu um membro do projeto.`);
+                    onRemoveMemberFromProject={async (pid, mid) => {
+                        try {
+                            await api.projects.removeMember(pid, mid);
+                            // Reload projects
+                            await store.loadData();
+                            store.actions.addLogEntry(pid, store.currentUser!.id, `removeu um membro do projeto.`);
+                        } catch (err: any) {
+                            console.error('Failed to remove member:', err);
+                            alert('Erro ao remover membro: ' + (err.message || 'Erro desconhecido'));
+                        }
                     }}
                     onUpdateUser={store.actions.handleUpdateUser}
                     availableClients={store.availableClients}
-                    onCreateAndAddMemberToProject={(data) => {
-                         const newUser: User = {
-                            id: `user-${Date.now()}`,
-                            name: data.name,
-                            email: data.email,
-                            password: data.password || '123',
-                            clientType: data.clientType,
-                            role: UserRole.CLIENT,
-                            requiresPasswordChange: true,
-                        };
-                        store.setAllUsers(prev => [...prev, newUser]);
-                        const pid = store.selectedProject!.id;
-                        store.actions.handleUpdateProject(pid, { clientIds: [...store.selectedProject!.clientIds, newUser.id] });
-                        store.actions.addLogEntry(pid, store.currentUser!.id, `adicionou ${newUser.name} ao projeto.`);
+                    onCreateAndAddMemberToProject={async (data) => {
+                        try {
+                            const pid = store.selectedProject!.id;
+                            // Use the backend endpoint to create user and add to project
+                            await api.projects.addMember(pid, undefined as any, {
+                                name: data.name,
+                                email: data.email,
+                                password: data.password || '123456',
+                                clientType: data.clientType,
+                            });
+                            // Reload data to get the real user from DB
+                            await store.loadData();
+                            store.actions.addLogEntry(pid, store.currentUser!.id, `adicionou ${data.name} ao projeto.`);
+                        } catch (err: any) {
+                            console.error('Failed to create and add member:', err);
+                            alert('Erro ao adicionar membro: ' + (err.message || 'Erro desconhecido'));
+                        }
                     }}
-                    onAddExistingMemberToProject={(uid, type) => {
-                        const pid = store.selectedProject!.id;
-                        store.actions.handleUpdateProject(pid, { clientIds: [...store.selectedProject!.clientIds, uid] });
-                        const user = store.allUsers.find(u => u.id === uid);
-                        store.actions.addLogEntry(pid, store.currentUser!.id, `adicionou ${user?.name || 'membro'} ao projeto.`);
+                    onAddExistingMemberToProject={async (uid, type) => {
+                        try {
+                            const pid = store.selectedProject!.id;
+                            await api.projects.addMember(pid, uid);
+                            // Reload projects to get updated clientIds
+                            await store.loadData();
+                            const user = store.allUsers.find(u => u.id === uid);
+                            store.actions.addLogEntry(pid, store.currentUser!.id, `adicionou ${user?.name || 'membro'} ao projeto.`);
+                        } catch (err: any) {
+                            console.error('Failed to add existing member:', err);
+                            alert('Erro ao adicionar membro: ' + (err.message || 'Erro desconhecido'));
+                        }
                     }}
                     onAddUser={(user) => store.setAllUsers(prev => [...prev, user])}
                 /> : <div>Projeto não encontrado.</div>;
