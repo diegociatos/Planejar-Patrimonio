@@ -86,6 +86,7 @@ const Phase6Registration: React.FC<Phase6RegistrationProps> = ({ phase, project,
     const handleFileUpload = (propertyId: string, file: File, docType: 'fee_guide' | 'fee_receipt' | 'updated_certificate') => {
         setUploadingProperty(propertyId);
         setUploadSuccess(null);
+        const currentProcess = registrationProcesses.find(p => p.propertyId === propertyId);
         onUploadAndLinkDocument(project.id, phase.id, file, (docId) => {
             const update: Partial<RegistrationProcessData> = {};
             if (docType === 'fee_guide') {
@@ -93,10 +94,20 @@ const Phase6Registration: React.FC<Phase6RegistrationProps> = ({ phase, project,
                 update.status = 'pending_fee_payment';
             } else if (docType === 'fee_receipt') {
                 update.feeReceiptDocId = docId;
-                update.status = 'pending_registration';
+                // If certidão already uploaded, mark completed; otherwise pending_registration
+                if (currentProcess?.updatedCertificateDocId) {
+                    update.status = 'completed';
+                } else {
+                    update.status = 'pending_registration';
+                }
             } else { // updated_certificate
                 update.updatedCertificateDocId = docId;
-                update.status = 'completed';
+                // If comprovante already uploaded, mark completed; otherwise pending_fee_payment
+                if (currentProcess?.feeReceiptDocId) {
+                    update.status = 'completed';
+                } else {
+                    update.status = 'pending_fee_payment';
+                }
             }
             handleUpdateProcess(propertyId, update);
             setUploadingProperty(null);
@@ -152,15 +163,15 @@ const Phase6Registration: React.FC<Phase6RegistrationProps> = ({ phase, project,
                                                         <input type="file" onChange={e => e.target.files && handleFileUpload(property.id, e.target.files[0], 'fee_guide')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" disabled={isReadOnly}/>
                                                     </div>
                                                 )}
-                                                {process.status === 'pending_fee_payment' && uploadingProperty !== property.id && (
+                                                {!feeReceiptDoc && process.status !== 'pending_fee_guide' && uploadingProperty !== property.id && (
                                                     <div>
                                                         <label className="text-sm font-medium">Anexar Comprovante de Pagamento do Cartório</label>
                                                         <input type="file" onChange={e => e.target.files && handleFileUpload(property.id, e.target.files[0], 'fee_receipt')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-yellow-50 file:text-yellow-700 hover:file:bg-yellow-100" disabled={isReadOnly}/>
                                                     </div>
                                                 )}
-                                                {process.status === 'pending_registration' && uploadingProperty !== property.id && (
+                                                {!finalCertDoc && process.status !== 'pending_fee_guide' && uploadingProperty !== property.id && (
                                                     <div>
-                                                        <label className="text-sm font-medium">Anexar Certidão Atualizada Integralizada</label>
+                                                        <label className="text-sm font-medium">Anexar Certidão Atualizada do Imóvel (Integralizado)</label>
                                                         <input type="file" onChange={e => e.target.files && handleFileUpload(property.id, e.target.files[0], 'updated_certificate')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" disabled={isReadOnly}/>
                                                     </div>
                                                 )}
