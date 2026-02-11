@@ -175,8 +175,7 @@ const Phase6Registration: React.FC<Phase6RegistrationProps> = ({ phase, project,
                                                         <input type="file" onChange={e => e.target.files && handleFileUpload(property.id, e.target.files[0], 'updated_certificate')} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" disabled={isReadOnly}/>
                                                     </div>
                                                 )}
-                                                {feeGuideDoc && <p className="text-sm">Guia: <button onClick={() => handleDownloadDoc(feeGuideDoc.id, feeGuideDoc.name)} className="text-blue-600 hover:underline">{feeGuideDoc.name}</button></p>}
-                                                {feeReceiptDoc && <p className="text-sm">Recibo: <button onClick={() => handleDownloadDoc(feeReceiptDoc.id, feeReceiptDoc.name)} className="text-blue-600 hover:underline">{feeReceiptDoc.name}</button></p>}
+                                                {feeReceiptDoc && <p className="text-sm">Comprovante: <button onClick={() => handleDownloadDoc(feeReceiptDoc.id, feeReceiptDoc.name)} className="text-blue-600 hover:underline">{feeReceiptDoc.name}</button></p>}
                                                 {finalCertDoc && <p className="text-sm">Certidão Final: <button onClick={() => handleDownloadDoc(finalCertDoc.id, finalCertDoc.name)} className="text-blue-600 hover:underline">{finalCertDoc.name}</button></p>}
                                             </div>
                                         ) : ( // Client View
